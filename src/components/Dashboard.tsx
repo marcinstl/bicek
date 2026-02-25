@@ -37,7 +37,7 @@ export default function Dashboard() {
               <span className="block w-4 h-0.5 bg-ink-soft rounded-full" />
             </button>
             <div className="text-lg font-black text-ink tracking-tight">
-              bicek<span className="text-emerald-500">.</span>
+              BICEK<span className="text-emerald-500">.</span>
             </div>
           </div>
           <button

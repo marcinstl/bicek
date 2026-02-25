@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'bicek - Habit Tracker',
+  title: 'Trenuj BICEK',
   description: 'Buduj nawyki treningowe. Krok po kroku.',
 };
 

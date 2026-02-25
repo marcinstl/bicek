@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
 import { ExportData } from '@/lib/types';
+import { Moon, Download, Upload, Construction, LogOut } from 'lucide-react';
 
 interface SideMenuProps {
   open: boolean;
@@ -75,11 +76,13 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
         <div className="flex flex-col h-full">
           <div className="p-5 border-b border-edge">
             <div className="text-lg font-black text-ink tracking-tight">
-              bicek<span className="text-emerald-500">.</span>
+              BICEK<span className="text-emerald-500">.</span>
             </div>
             {user && (
               <p className="text-xs text-ink-faint mt-1">
-                {isLocal ? 'Tryb lokalny' : 'Online'}
+                {isLocal
+                  ? 'Tryb lokalny · dane tylko w tej przeglądarce'
+                  : 'Online'}
               </p>
             )}
           </div>
@@ -90,7 +93,10 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
               className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl text-sm text-ink-soft
                 hover:bg-field transition-colors"
             >
-              <span>Tryb ciemny</span>
+              <span className="flex items-center gap-3">
+                <Moon className="w-4 h-4 text-ink-faint" />
+                Tryb ciemny
+              </span>
               <div className={`relative w-10 h-[22px] rounded-full transition-colors ${
                 theme === 'dark' ? 'bg-emerald-500' : 'bg-edge'
               }`}>
@@ -109,9 +115,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
                   className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-ink-soft
                     hover:bg-field transition-colors text-left"
                 >
-                  <svg className="w-4 h-4 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
-                  </svg>
+                  <Download className="w-4 h-4 text-ink-faint" />
                   Eksportuj dane
                 </button>
 
@@ -120,9 +124,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
                   className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-ink-soft
                     hover:bg-field transition-colors text-left"
                 >
-                  <svg className="w-4 h-4 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M17 8l-5-5m0 0L7 8m5-5v12" />
-                  </svg>
+                  <Upload className="w-4 h-4 text-ink-faint" />
                   Importuj dane
                 </button>
                 <input
@@ -136,10 +138,6 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
                 {status && (
                   <p className="text-xs text-center text-emerald-500 py-1">{status}</p>
                 )}
-
-                <p className="text-[10px] text-ink-faint px-3 pt-1 leading-relaxed">
-                  Dane są w tej przeglądarce. Usunięcie danych przeglądarki spowoduje ich utratę.
-                </p>
               </>
             )}
           </nav>
@@ -150,7 +148,10 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
               className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl text-sm text-ink-faint
                 hover:bg-field transition-colors"
             >
-              <span>Debug mode</span>
+              <span className="flex items-center gap-3">
+                <Construction className="w-4 h-4 text-ink-faint" />
+                Debug mode
+              </span>
               <div className={`relative w-10 h-[22px] rounded-full transition-colors ${
                 debugMode ? 'bg-red-500' : 'bg-edge'
               }`}>
@@ -165,7 +166,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
               className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-ink-faint
                 hover:bg-field transition-colors text-left"
             >
-              <span className="w-5 text-center text-base">→</span>
+              <LogOut className="w-4 h-4 text-ink-faint" />
               Wyloguj
             </button>
           </div>

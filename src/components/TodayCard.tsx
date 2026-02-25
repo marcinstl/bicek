@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/hooks/useApp';
 import { displayTarget } from '@/lib/progression';
+import { Coffee } from 'lucide-react';
 
 function getSetsKey(exerciseId: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -22,16 +23,6 @@ function saveSets(exerciseId: string, sets: number[]) {
   localStorage.setItem(getSetsKey(exerciseId), JSON.stringify(sets));
 }
 
-function CoffeeIcon({ active }: { active: boolean }) {
-  const sw = active ? 2.2 : 1.8;
-  return (
-    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={sw}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h1a4 4 0 010 8h-1" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 2v3M10 2v3M14 2v3" />
-    </svg>
-  );
-}
 
 export default function TodayCard() {
   const { currentExercise, todayLog, isRestDay, setsVersion, completeDay, addMoreReps, skipRestDay, markTodayRest, undoTodayRest, getRestBudget } = useApp();
@@ -144,7 +135,7 @@ export default function TodayCard() {
             className="w-8 h-8 flex items-center justify-center rounded-lg
               text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
           >
-            <CoffeeIcon active />
+            <Coffee className="w-[18px] h-[18px]" strokeWidth={2.2} />
           </button>
         </div>
         <div className="text-center py-4">
@@ -172,7 +163,7 @@ export default function TodayCard() {
             className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint
               hover:bg-amber-500/10 hover:text-amber-500 transition-colors disabled:opacity-50"
           >
-            <CoffeeIcon active={false} />
+            <Coffee className="w-[18px] h-[18px]" strokeWidth={1.8} />
           </button>
         )}
       </div>
@@ -224,7 +215,7 @@ export default function TodayCard() {
             onChange={e => setReps(e.target.value)}
             placeholder="Seria..."
             min={1}
-            className="flex-1 py-3 px-4 bg-field border border-edge rounded-xl text-ink text-center
+            className="min-w-0 flex-1 py-3 px-3 bg-field border border-edge rounded-xl text-ink text-center
               text-lg font-semibold placeholder:text-ink-faint placeholder:font-normal placeholder:text-sm
               focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
           />
@@ -232,7 +223,7 @@ export default function TodayCard() {
             <button
               onClick={handleAddSet}
               disabled={!reps}
-              className="py-3 px-4 bg-field border border-edge text-ink-soft rounded-xl text-sm font-medium
+              className="shrink-0 w-12 py-3 bg-field border border-edge text-ink-soft rounded-xl text-sm font-medium
                 hover:bg-edge transition-colors disabled:opacity-30"
             >
               +
@@ -241,7 +232,7 @@ export default function TodayCard() {
             <button
               onClick={handleAddMore}
               disabled={submitting || !reps}
-              className="py-3 px-4 bg-field border border-edge text-ink-soft rounded-xl text-sm font-medium
+              className="shrink-0 w-12 py-3 bg-field border border-edge text-ink-soft rounded-xl text-sm font-medium
                 hover:bg-edge transition-colors disabled:opacity-30"
             >
               {submitting ? '...' : '+'}

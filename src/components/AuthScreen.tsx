@@ -37,7 +37,7 @@ export default function AuthScreen() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <div className="text-5xl font-black tracking-tight text-ink">
-            bicek<span className="text-emerald-500">.</span>
+            BICEK<span className="text-emerald-500">.</span>
           </div>
           <p className="text-ink-faint text-sm tracking-wide uppercase">
             Buduj nawyki. Krok po kroku.
