@@ -1,7 +1,8 @@
 'use client';
 
 import { useApp } from '@/hooks/useApp';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AddExercise from './AddExercise';
 import DebugForecast from './DebugForecast';
 import DebugPanel from './DebugPanel';
@@ -15,14 +16,31 @@ import TodayCard from './TodayCard';
 import WeekForecast from './WeekForecast';
 
 export default function Dashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const exerciseIdFromUrl = searchParams.get('exercise');
   const { user, exercises, currentExercise, selectExercise } = useApp();
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [view, setView] = useState<'exercise' | 'list'>('exercise');
+
+  const hasExercises = exercises.length > 0;
+  const idFromUrl = exerciseIdFromUrl?.trim();
+  const validExerciseId = idFromUrl && exercises.some(e => e.id === idFromUrl) ? idFromUrl : null;
+  const view = validExerciseId ? 'exercise' : 'list';
+
+  useEffect(() => {
+    if (validExerciseId && currentExercise?.id !== validExerciseId) {
+      selectExercise(validExerciseId);
+    }
+  }, [validExerciseId, currentExercise?.id, selectExercise]);
+
+  useEffect(() => {
+    if (exerciseIdFromUrl !== null && !validExerciseId) {
+      router.replace('/');
+    }
+  }, [exerciseIdFromUrl, validExerciseId, router]);
 
   if (!user) return null;
-
-  const hasExercises = exercises.length > 0 && currentExercise;
 
   return (
     <div className="min-h-screen bg-base pb-32">
@@ -42,7 +60,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => {
                 if (exercises.length > 0) {
-                  setView('list');
+                  router.push('/');
                 }
               }}
               className="text-lg font-black text-ink tracking-tight active:scale-[0.97] transition-transform"
@@ -74,9 +92,8 @@ export default function Dashboard() {
           </div>
         ) : view === 'list' ? (
           <ExerciseList
-            onSelectExercise={async (id: string) => {
-              await selectExercise(id);
-              setView('exercise');
+            onSelectExercise={(id: string) => {
+              router.push(`/?exercise=${id}`);
             }}
           />
         ) : (

@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { AppProvider, useApp } from '@/hooks/useApp';
 import { ThemeProvider } from '@/hooks/useTheme';
 import AuthScreen from '@/components/AuthScreen';
@@ -20,7 +21,15 @@ function AppContent() {
     return <AuthScreen />;
   }
 
-  return <Dashboard />;
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-base">
+        <div className="text-ink-faint text-sm animate-pulse">Ładowanie...</div>
+      </div>
+    }>
+      <Dashboard />
+    </Suspense>
+  );
 }
 
 export default function Home() {

@@ -68,6 +68,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const refreshExercise = useCallback(async (exerciseId: string) => {
+    if (!exerciseId || typeof exerciseId !== 'string' || exerciseId.trim() === '') return;
     if (!storageRef.current) return;
     const storage = storageRef.current;
 
@@ -244,6 +245,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.user, refreshExercise]);
 
   const selectExercise = useCallback(async (id: string) => {
+    if (!id || typeof id !== 'string' || id.trim() === '') return;
     localStorage.setItem('fitness-addict-current-exercise', id);
     await refreshExercise(id);
   }, [refreshExercise]);

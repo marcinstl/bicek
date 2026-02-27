@@ -61,6 +61,7 @@ export class IDBStorage implements StorageAdapter {
   }
 
   async getExercise(id: string): Promise<Exercise | null> {
+    if (!id || typeof id !== 'string' || id.trim() === '') return null;
     const db = await getDB();
     return (await db.get('exercises', id)) ?? null;
   }
