@@ -38,6 +38,8 @@ interface AppContextType extends AppState {
   resetToday: () => Promise<void>;
   editPastLog: (logId: string, completed: number) => Promise<void>;
   getRestBudget: () => { total: number; used: number; remaining: number };
+  getExerciseTodayLog: (exerciseId: string) => Promise<DailyLog | null>;
+  getRestBudgetForExercise: (exerciseId: string) => Promise<{ total: number; used: number; remaining: number }>;
   exportData: () => Promise<ExportData>;
   importData: (data: ExportData) => Promise<void>;
   getWeekTotal: () => number;
@@ -475,6 +477,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { total, used, remaining: Math.max(0, total - used) };
   }, [state.currentExercise, state.allLogs]);
 
+  const getExerciseTodayLog = useCallback(async (exerciseId: string) => {
+    if (!storageRef.current) return null;
+    return storageRef.current.getTodayLog(exerciseId);
+  }, []);
+
+  const getRestBudgetForExercise = useCallback(async (exerciseId: string) => {
+    if (!storageRef.current) return { total: 0, used: 0, remaining: 0 };
+    const ex = state.exercises.find(e => e.id === exerciseId);
+    if (!ex) return { total: 0, used: 0, remaining: 0 };
+
+    const dpw = ex.daysPerWeek ?? 7;
+    const total = 7 - dpw;
+    const weekDates = getWeekDates();
+    const weekStartStr = dateToISO(weekDates[0]);
+    const weekEndStr = dateToISO(weekDates[6]);
+
+    const logs = await storageRef.current.getDailyLogs(exerciseId);
+    const used = logs.filter(l =>
+      l.isRestDay && l.date >= weekStartStr && l.date <= weekEndStr
+    ).length;
+
+    return { total, used, remaining: Math.max(0, total - used) };
+  }, [state.exercises]);
+
   const exportData = useCallback(async (): Promise<ExportData> => {
     if (!storageRef.current || !state.user) throw new Error('No data');
     return storageRef.current.exportAll(state.user.id);
@@ -560,6 +586,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetToday,
         editPastLog,
         getRestBudget,
+      getExerciseTodayLog,
+      getRestBudgetForExercise,
         exportData,
         importData,
         getWeekTotal,

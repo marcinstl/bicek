@@ -7,6 +7,7 @@ import DebugForecast from './DebugForecast';
 import DebugPanel from './DebugPanel';
 import ExerciseSelector from './ExerciseSelector';
 import ExerciseSettings from './ExerciseSettings';
+import ExerciseList from './ExerciseList';
 import ProgressChart from './ProgressChart';
 import SideMenu from './SideMenu';
 import StatsCard from './StatsCard';
@@ -14,9 +15,10 @@ import TodayCard from './TodayCard';
 import WeekForecast from './WeekForecast';
 
 export default function Dashboard() {
-  const { user, exercises, currentExercise } = useApp();
+  const { user, exercises, currentExercise, selectExercise } = useApp();
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [view, setView] = useState<'exercise' | 'list'>('exercise');
 
   if (!user) return null;
 
@@ -36,9 +38,17 @@ export default function Dashboard() {
               <span className="block w-4 h-0.5 bg-ink-soft rounded-full" />
               <span className="block w-4 h-0.5 bg-ink-soft rounded-full" />
             </button>
-            <div className="text-lg font-black text-ink tracking-tight">
+            <button
+              type="button"
+              onClick={() => {
+                if (exercises.length > 0) {
+                  setView('list');
+                }
+              }}
+              className="text-lg font-black text-ink tracking-tight active:scale-[0.97] transition-transform"
+            >
               BICEK<span className="text-emerald-500">.</span>
-            </div>
+            </button>
           </div>
           <button
             onClick={() => setShowAdd(true)}
@@ -62,6 +72,13 @@ export default function Dashboard() {
               Dodaj pierwsze ćwiczenie
             </button>
           </div>
+        ) : view === 'list' ? (
+          <ExerciseList
+            onSelectExercise={async (id: string) => {
+              await selectExercise(id);
+              setView('exercise');
+            }}
+          />
         ) : (
           <>
             <ExerciseSelector />
@@ -73,8 +90,12 @@ export default function Dashboard() {
           </>
         )}
 
-        <div className="h-px bg-edge my-2" />
-        {currentExercise && <ExerciseSettings />}
+        {hasExercises && view === 'exercise' && (
+          <>
+            <div className="h-px bg-edge my-2" />
+            <ExerciseSettings />
+          </>
+        )}
       </main>
 
       {showAdd && <AddExercise onClose={() => setShowAdd(false)} />}
