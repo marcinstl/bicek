@@ -116,14 +116,18 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
             {exercise.name}
           </div>
           <div className="text-[11px] text-ink-faint mt-0.5">
-            {exercise.daysPerWeek} dni treningu w tygodniu
+            {exercise.daysPerWeek}x/tydzień
           </div>
         </div>
         <div className="text-right">
           {isRestDay ? (
             <div className="text-xs font-medium text-amber-500">Przerwa</div>
+          ) : done ? (
+            <div className="text-xs font-medium text-emerald-500">Trening wykonany</div>
+          ) : hasProgress ? (
+            <div className="text-xs text-ink-faint">W trakcie</div>
           ) : (
-            <div className="text-xs text-ink-faint">Dzisiaj</div>
+            <div className="text-xs text-ink-faint">Jeszcze przed Tobą</div>
           )}
         </div>
       </div>
