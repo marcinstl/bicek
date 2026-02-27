@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { User, Exercise, DailyLog, ExportData } from './types';
 import { StorageAdapter } from './storage';
+import { todayISO } from './utils';
 
 export class SupabaseStorage implements StorageAdapter {
   constructor(private supabase: SupabaseClient) {}
@@ -89,7 +90,7 @@ export class SupabaseStorage implements StorageAdapter {
   }
 
   async getTodayLog(exerciseId: string): Promise<DailyLog | null> {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayISO();
     const { data } = await this.supabase
       .from('dailyLogs')
       .select('*')

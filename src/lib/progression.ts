@@ -1,4 +1,5 @@
 import { Exercise, DailyLog } from './types';
+import { todayISO } from './utils';
 
 const MIN_RATE = 0.002;
 const MAX_RATE = 0.015;
@@ -165,7 +166,7 @@ export function processDay(
     dayNumber: exercise.currentDay,
     target: shownTarget,
     completed: isRestDay ? 0 : completed,
-    date: new Date().toISOString().split('T')[0],
+    date: todayISO(),
     isRestDay,
   };
 

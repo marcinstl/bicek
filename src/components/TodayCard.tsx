@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/hooks/useApp';
 import { displayTarget } from '@/lib/progression';
+import { todayISO } from '@/lib/utils';
 import { Coffee } from 'lucide-react';
 
 function getSetsKey(exerciseId: string): string {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   return `bicek-sets-${exerciseId}-${today}`;
 }
 

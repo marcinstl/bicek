@@ -1,6 +1,7 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { User, Exercise, DailyLog, ExportData } from './types';
 import { StorageAdapter } from './storage';
+import { todayISO } from './utils';
 
 interface FitnessDB extends DBSchema {
   users: {
@@ -120,7 +121,7 @@ export class IDBStorage implements StorageAdapter {
 
   async getTodayLog(exerciseId: string): Promise<DailyLog | null> {
     const db = await getDB();
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayISO();
     const logs = await db.getAllFromIndex('dailyLogs', 'by-exerciseId', exerciseId);
     return logs.find(l => l.date === today) ?? null;
   }
