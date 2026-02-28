@@ -7,9 +7,18 @@ create table if not exists users (
   "createdAt" timestamptz not null default now()
 );
 
+create table if not exists catalogs (
+  id uuid primary key default gen_random_uuid(),
+  "userId" uuid not null references users(id) on delete cascade,
+  name text not null,
+  "daysPerWeek" integer not null default 5,
+  "createdAt" timestamptz not null default now()
+);
+
 create table if not exists exercises (
   id uuid primary key default gen_random_uuid(),
   "userId" uuid not null references users(id) on delete cascade,
+  "catalogId" uuid references catalogs(id) on delete set null,
   name text not null,
   "startValue" integer not null,
   "currentTarget" double precision not null,
@@ -28,20 +37,31 @@ create table if not exists "dailyLogs" (
   target integer not null,
   completed integer not null default 0,
   date date not null default current_date,
-  "isRestDay" boolean not null default false
+  "isRestDay" boolean not null default false,
+  "catalogRest" boolean default false
 );
 
+create index if not exists idx_catalogs_user on catalogs("userId");
 create index if not exists idx_exercises_user on exercises("userId");
+create index if not exists idx_exercises_catalog on exercises("catalogId");
 create index if not exists idx_logs_exercise on "dailyLogs"("exerciseId");
 create index if not exists idx_logs_date on "dailyLogs"(date);
 
+-- Migrations for existing projects (run if you already had exercises without catalogId)
+-- alter table exercises add column if not exists "catalogId" uuid references catalogs(id) on delete set null;
+-- alter table "dailyLogs" add column if not exists "catalogRest" boolean default false;
+
 -- Row Level Security
 alter table users enable row level security;
+alter table catalogs enable row level security;
 alter table exercises enable row level security;
 alter table "dailyLogs" enable row level security;
 
 create policy "Users can manage own data"
   on users for all using (auth.uid() = id);
+
+create policy "Users can manage own catalogs"
+  on catalogs for all using (auth.uid() = "userId");
 
 create policy "Users can manage own exercises"
   on exercises for all using (auth.uid() = "userId");

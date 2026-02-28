@@ -37,7 +37,12 @@ export function adjustDailyRate(dailyRate: number, completed: number, target: nu
   }
 }
 
-export function shouldRestDay(exercise: Exercise, recentLogs: DailyLog[]): boolean {
+export function shouldRestDay(
+  exercise: Exercise,
+  recentLogs: DailyLog[],
+  effectiveDaysPerWeek?: number
+): boolean {
+  const dpw = effectiveDaysPerWeek ?? exercise.daysPerWeek ?? 7;
   const trainingLogs = recentLogs.filter(l => !l.isRestDay);
 
   const lastTrainingDay = trainingLogs.length > 0
@@ -60,7 +65,7 @@ export function shouldRestDay(exercise: Exercise, recentLogs: DailyLog[]): boole
     }
   }
 
-  if (exercise.daysPerWeek >= 5) {
+  if (dpw >= 5) {
     const consecutiveTrainingDays = countConsecutiveTrainingFromSim(recentLogs);
     if (consecutiveTrainingDays >= 4) {
       return true;
@@ -82,11 +87,12 @@ export function forecastDays(
   recentLogs: DailyLog[],
   todayIsRestDay: boolean,
   count: number = 7,
+  effectiveDaysPerWeek?: number,
 ): ForecastDay[] {
   const days: ForecastDay[] = [];
   let rawTarget = exercise.currentTarget;
   const rate = exercise.dailyRate;
-  const dpw = exercise.daysPerWeek ?? 7;
+  const dpw = effectiveDaysPerWeek ?? exercise.daysPerWeek ?? 7;
   let dayNum = exercise.currentDay;
 
   const simLogs = [...recentLogs];
@@ -156,10 +162,11 @@ export function processDay(
   exercise: Exercise,
   completed: number,
   recentLogs: DailyLog[],
-  isRestDay: boolean
+  isRestDay: boolean,
+  effectiveDaysPerWeek?: number
 ): { updatedExercise: Partial<Exercise>; log: Omit<DailyLog, 'id'> } {
   const shownTarget = displayTarget(exercise.currentTarget);
-  const dpw = exercise.daysPerWeek ?? 7;
+  const dpw = effectiveDaysPerWeek ?? exercise.daysPerWeek ?? 7;
 
   const log: Omit<DailyLog, 'id'> = {
     exerciseId: exercise.id,

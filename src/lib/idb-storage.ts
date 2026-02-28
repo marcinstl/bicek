@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { User, Exercise, DailyLog, ExportData } from './types';
+import { User, Catalog, Exercise, DailyLog, ExportData } from './types';
 import { StorageAdapter } from './storage';
 import { todayISO } from './utils';
 
@@ -7,6 +7,11 @@ interface FitnessDB extends DBSchema {
   users: {
     key: string;
     value: User;
+  };
+  catalogs: {
+    key: string;
+    value: Catalog;
+    indexes: { 'by-userId': string };
   };
   exercises: {
     key: string;
@@ -27,16 +32,20 @@ let dbPromise: Promise<IDBPDatabase<FitnessDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<FitnessDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<FitnessDB>('fitness-addict', 1, {
-      upgrade(db) {
-        db.createObjectStore('users', { keyPath: 'id' });
-
-        const exerciseStore = db.createObjectStore('exercises', { keyPath: 'id' });
-        exerciseStore.createIndex('by-userId', 'userId');
-
-        const logStore = db.createObjectStore('dailyLogs', { keyPath: 'id' });
-        logStore.createIndex('by-exerciseId', 'exerciseId');
-        logStore.createIndex('by-date', 'date');
+    dbPromise = openDB<FitnessDB>('fitness-addict', 2, {
+      upgrade(db, oldVersion, newVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore('users', { keyPath: 'id' });
+          const exerciseStore = db.createObjectStore('exercises', { keyPath: 'id' });
+          exerciseStore.createIndex('by-userId', 'userId');
+          const logStore = db.createObjectStore('dailyLogs', { keyPath: 'id' });
+          logStore.createIndex('by-exerciseId', 'exerciseId');
+          logStore.createIndex('by-date', 'date');
+        }
+        if (oldVersion < 2) {
+          const catalogStore = db.createObjectStore('catalogs', { keyPath: 'id' });
+          catalogStore.createIndex('by-userId', 'userId');
+        }
       },
     });
   }
@@ -55,9 +64,53 @@ export class IDBStorage implements StorageAdapter {
     await db.put('users', user);
   }
 
+  async getCatalogs(userId: string): Promise<Catalog[]> {
+    const db = await getDB();
+    return db.getAllFromIndex('catalogs', 'by-userId', userId);
+  }
+
+  async getCatalog(id: string): Promise<Catalog | null> {
+    if (!id || typeof id !== 'string' || id.trim() === '') return null;
+    const db = await getDB();
+    return (await db.get('catalogs', id)) ?? null;
+  }
+
+  async createCatalog(catalog: Catalog): Promise<void> {
+    const db = await getDB();
+    await db.put('catalogs', catalog);
+  }
+
+  async updateCatalog(id: string, data: Partial<Catalog>): Promise<void> {
+    const db = await getDB();
+    const existing = await db.get('catalogs', id);
+    if (existing) {
+      await db.put('catalogs', { ...existing, ...data });
+    }
+  }
+
+  async deleteCatalog(id: string): Promise<void> {
+    const db = await getDB();
+    const catalog = await db.get('catalogs', id);
+    if (catalog) {
+      const exercises = (await db.getAllFromIndex('exercises', 'by-userId', catalog.userId))
+        .filter((e: Exercise) => e.catalogId === id);
+      for (const ex of exercises) {
+        await db.put('exercises', { ...ex, catalogId: null });
+      }
+      await db.delete('catalogs', id);
+    }
+  }
+
   async getExercises(userId: string): Promise<Exercise[]> {
     const db = await getDB();
     return db.getAllFromIndex('exercises', 'by-userId', userId);
+  }
+
+  async getExercisesByCatalog(catalogId: string): Promise<Exercise[]> {
+    const catalog = await this.getCatalog(catalogId);
+    if (!catalog) return [];
+    const all = await this.getExercises(catalog.userId);
+    return all.filter(e => e.catalogId === catalogId);
   }
 
   async getExercise(id: string): Promise<Exercise | null> {
@@ -130,6 +183,7 @@ export class IDBStorage implements StorageAdapter {
   async exportAll(userId: string): Promise<ExportData> {
     const db = await getDB();
     const user = await this.getUser();
+    const catalogs = await this.getCatalogs(userId);
     const exercises = await this.getExercises(userId);
     const allLogs: DailyLog[] = [];
 
@@ -142,6 +196,7 @@ export class IDBStorage implements StorageAdapter {
       version: 1,
       exportedAt: new Date().toISOString(),
       user: user!,
+      catalogs,
       exercises,
       dailyLogs: allLogs,
     };
@@ -149,13 +204,18 @@ export class IDBStorage implements StorageAdapter {
 
   async importAll(data: ExportData): Promise<void> {
     const db = await getDB();
-
-    const tx = db.transaction(['users', 'exercises', 'dailyLogs'], 'readwrite');
+    const storeNames = ['users', 'catalogs', 'exercises', 'dailyLogs'] as const;
+    const tx = db.transaction(storeNames, 'readwrite');
 
     const userStore = tx.objectStore('users');
     const allUsers = await userStore.getAll();
     for (const u of allUsers) await userStore.delete(u.id);
     await userStore.put(data.user);
+
+    const catStore = tx.objectStore('catalogs');
+    const allCats = await catStore.getAll();
+    for (const c of allCats) await catStore.delete(c.id);
+    for (const c of data.catalogs ?? []) await catStore.put(c);
 
     const exStore = tx.objectStore('exercises');
     const allEx = await exStore.getAll();

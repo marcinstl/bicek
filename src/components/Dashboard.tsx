@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AddExercise from './AddExercise';
 import DebugForecast from './DebugForecast';
 import DebugPanel from './DebugPanel';
-import ExerciseSelector from './ExerciseSelector';
 import ExerciseSettings from './ExerciseSettings';
 import ExerciseList from './ExerciseList';
 import ProgressChart from './ProgressChart';
@@ -98,7 +97,6 @@ export default function Dashboard() {
           />
         ) : (
           <>
-            <ExerciseSelector />
             <WeekForecast />
             <TodayCard />
             <StatsCard />

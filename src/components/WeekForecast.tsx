@@ -8,7 +8,7 @@ import { DailyLog } from '@/lib/types';
 import PastDayModal from './PastDayModal';
 
 export default function WeekForecast() {
-  const { currentExercise, allLogs, getRestBudget } = useApp();
+  const { currentExercise, allLogs, getRestBudget, getEffectiveDaysPerWeek } = useApp();
   const [editingLog, setEditingLog] = useState<DailyLog | null>(null);
 
   const today = todayISO();
@@ -26,7 +26,7 @@ export default function WeekForecast() {
   if (!currentExercise) return null;
 
   const ex = currentExercise;
-  const dpw = ex.daysPerWeek ?? 7;
+  const dpw = getEffectiveDaysPerWeek(ex);
   const rate = ex.dailyRate;
 
   const days = weekDates.map(date => {

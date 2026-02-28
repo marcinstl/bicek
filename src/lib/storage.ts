@@ -1,10 +1,17 @@
-import { User, Exercise, DailyLog, ExportData } from './types';
+import { User, Catalog, Exercise, DailyLog, ExportData } from './types';
 
 export interface StorageAdapter {
   getUser(): Promise<User | null>;
   createUser(user: User): Promise<void>;
 
+  getCatalogs(userId: string): Promise<Catalog[]>;
+  getCatalog(id: string): Promise<Catalog | null>;
+  createCatalog(catalog: Catalog): Promise<void>;
+  updateCatalog(id: string, data: Partial<Catalog>): Promise<void>;
+  deleteCatalog(id: string): Promise<void>;
+
   getExercises(userId: string): Promise<Exercise[]>;
+  getExercisesByCatalog(catalogId: string): Promise<Exercise[]>;
   getExercise(id: string): Promise<Exercise | null>;
   createExercise(exercise: Exercise): Promise<void>;
   updateExercise(id: string, data: Partial<Exercise>): Promise<void>;

@@ -4,7 +4,7 @@ import { useApp } from '@/hooks/useApp';
 import { forecastDays } from '@/lib/progression';
 
 export default function DebugForecast() {
-  const { debugMode, currentExercise, isRestDay, allLogs } = useApp();
+  const { debugMode, currentExercise, isRestDay, allLogs, getEffectiveDaysPerWeek } = useApp();
 
   if (!debugMode || !currentExercise) return null;
 
@@ -12,7 +12,8 @@ export default function DebugForecast() {
     .sort((a, b) => a.dayNumber - b.dayNumber)
     .slice(-10);
 
-  const days = forecastDays(currentExercise, recentLogs, isRestDay, 100);
+  const effectiveDpw = getEffectiveDaysPerWeek(currentExercise);
+  const days = forecastDays(currentExercise, recentLogs, isRestDay, 100, effectiveDpw);
 
   return (
     <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 space-y-3">

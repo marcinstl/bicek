@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { User, Exercise, DailyLog, ExportData, AuthMode, DebugInfo } from '@/lib/types';
+import { User, Catalog, Exercise, DailyLog, ExportData, AuthMode, DebugInfo } from '@/lib/types';
 import { StorageAdapter } from '@/lib/storage';
 import { IDBStorage } from '@/lib/idb-storage';
 import { SupabaseStorage } from '@/lib/supabase-storage';
@@ -11,6 +11,7 @@ import { generateId, todayISO, dateToISO, getWeekStart, getWeekDates, getMonthSt
 
 interface AppState {
   user: User | null;
+  catalogs: Catalog[];
   exercises: Exercise[];
   currentExercise: Exercise | null;
   todayLog: DailyLog | null;
@@ -27,9 +28,15 @@ interface AppContextType extends AppState {
   signupEmail: (email: string, password: string) => Promise<void>;
   loginGoogle: () => Promise<void>;
   logout: () => void;
-  addExercise: (name: string, startValue: number, daysPerWeek?: number) => Promise<void>;
+  addExercise: (name: string, startValue: number, daysPerWeek?: number, catalogId?: string | null, newCatalogName?: string) => Promise<void>;
+  createCatalog: (name: string, daysPerWeek: number) => Promise<Catalog>;
   selectExercise: (id: string) => Promise<void>;
+  setExerciseCatalog: (exerciseId: string, catalogId: string | null) => Promise<void>;
   deleteExercise: (id: string) => Promise<void>;
+  markCatalogRestDay: (catalogId: string) => Promise<void>;
+  undoCatalogRestDay: (catalogId: string) => Promise<void>;
+  getEffectiveDaysPerWeek: (exercise: Exercise) => number;
+  getCatalogForExercise: (exercise: Exercise) => Catalog | null;
   completeDay: (completed: number) => Promise<void>;
   addMoreReps: (additional: number) => Promise<void>;
   skipRestDay: () => Promise<void>;
@@ -40,6 +47,13 @@ interface AppContextType extends AppState {
   getRestBudget: () => { total: number; used: number; remaining: number };
   getExerciseTodayLog: (exerciseId: string) => Promise<DailyLog | null>;
   getRestBudgetForExercise: (exerciseId: string) => Promise<{ total: number; used: number; remaining: number }>;
+  getWeeklyGroupPreview: (exerciseIds: string[]) => Promise<Array<{
+    date: string;
+    isRestDay: boolean;
+    completed: number;
+    total: number;
+    hasLog: boolean;
+  }>>;
   exportData: () => Promise<ExportData>;
   importData: (data: ExportData) => Promise<void>;
   getWeekTotal: () => number;
@@ -57,6 +71,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const storageRef = useRef<StorageAdapter | null>(null);
   const [state, setState] = useState<AppState>({
     user: null,
+    catalogs: [],
     exercises: [],
     currentExercise: null,
     todayLog: null,
@@ -66,6 +81,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     debugMode: false,
     setsVersion: 0,
   });
+
+  const getEffectiveDaysPerWeek = useCallback((exercise: Exercise): number => {
+    if (!exercise.catalogId) return exercise.daysPerWeek ?? 7;
+    const catalog = state.catalogs.find(c => c.id === exercise.catalogId);
+    return catalog ? catalog.daysPerWeek : (exercise.daysPerWeek ?? 7);
+  }, [state.catalogs]);
+
+  const getCatalogForExercise = useCallback((exercise: Exercise): Catalog | null => {
+    if (!exercise.catalogId) return null;
+    return state.catalogs.find(c => c.id === exercise.catalogId) ?? null;
+  }, [state.catalogs]);
 
   const refreshExercise = useCallback(async (exerciseId: string) => {
     if (!exerciseId || typeof exerciseId !== 'string' || exerciseId.trim() === '') return;
@@ -78,9 +104,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!ex) return;
 
     const todayLog = await storage.getTodayLog(exerciseId);
+    let isRest = todayLog?.isRestDay ?? false;
+    if (!isRest && ex.catalogId) {
+      isRest = await getCatalogRestToday(storage, ex.catalogId);
+    }
     const allLogs = await storage.getDailyLogs(exerciseId);
-    const recentLogs = await storage.getRecentLogs(exerciseId, 10);
-    const isRest = shouldRestDay(ex, recentLogs);
+    if (!isRest) {
+      const recentLogs = await storage.getRecentLogs(exerciseId, 10);
+      const catalog = ex.catalogId ? await storage.getCatalog(ex.catalogId) : null;
+      const effectiveDpw = catalog ? catalog.daysPerWeek : (ex.daysPerWeek ?? 7);
+      isRest = shouldRestDay(ex, recentLogs, effectiveDpw);
+    }
 
     setState(s => ({
       ...s,
@@ -102,8 +136,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         storageRef.current = storage;
         const user = await storage.getUser();
         if (user) {
-          const exercises = await storage.getExercises(user.id);
-          setState(s => ({ ...s, user, exercises, loading: false }));
+          const [catalogs, exercises] = await Promise.all([
+            storage.getCatalogs(user.id),
+            storage.getExercises(user.id),
+          ]);
+          setState(s => ({ ...s, user, catalogs, exercises, loading: false }));
           if (exercises.length > 0) {
             const last = localStorage.getItem('fitness-addict-current-exercise');
             const targetId = last && exercises.find(e => e.id === last) ? last : exercises[0].id;
@@ -129,8 +166,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               };
               await storage.createUser(user);
             }
-            const exercises = await storage.getExercises(user.id);
-            setState(s => ({ ...s, user, exercises, loading: false }));
+            const [catalogs, exercises] = await Promise.all([
+              storage.getCatalogs(user.id),
+              storage.getExercises(user.id),
+            ]);
+            setState(s => ({ ...s, user, catalogs, exercises, loading: false }));
             if (exercises.length > 0) {
               await refreshExerciseStatic(storage, exercises[0].id, setState);
             }
@@ -155,7 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     await storage.createUser(user);
     localStorage.setItem('fitness-addict-mode', 'local');
-    setState(s => ({ ...s, user, exercises: [], loading: false }));
+    setState(s => ({ ...s, user, catalogs: [], exercises: [], loading: false }));
   }, []);
 
   const loginEmail = useCallback(async (email: string, password: string) => {
@@ -178,8 +218,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     localStorage.setItem('fitness-addict-mode', 'online');
-    const exercises = await storage.getExercises(user.id);
-    setState(s => ({ ...s, user, exercises, loading: false }));
+    const [catalogs, exercises] = await Promise.all([
+      storage.getCatalogs(user.id),
+      storage.getExercises(user.id),
+    ]);
+    setState(s => ({ ...s, user, catalogs, exercises, loading: false }));
 
     if (exercises.length > 0) {
       await refreshExerciseStatic(storage, exercises[0].id, setState);
@@ -212,6 +255,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storageRef.current = null;
     setState({
       user: null,
+      catalogs: [],
       exercises: [],
       currentExercise: null,
       todayLog: null,
@@ -223,8 +267,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const addExercise = useCallback(async (name: string, startValue: number, daysPerWeek: number = 7) => {
+  const addExercise = useCallback(async (
+    name: string,
+    startValue: number,
+    daysPerWeek: number = 7,
+    catalogId?: string | null,
+    newCatalogName?: string
+  ) => {
     if (!storageRef.current || !state.user) return;
+    let finalCatalogId: string | null = catalogId ?? null;
+    if (newCatalogName?.trim()) {
+      const catalog: Catalog = {
+        id: generateId(),
+        userId: state.user.id,
+        name: newCatalogName.trim(),
+        daysPerWeek,
+        createdAt: new Date().toISOString(),
+      };
+      await storageRef.current.createCatalog(catalog);
+      finalCatalogId = catalog.id;
+      setState(s => ({ ...s, catalogs: [...s.catalogs, catalog] }));
+    }
     const exercise: Exercise = {
       id: generateId(),
       userId: state.user.id,
@@ -236,18 +299,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       totalReps: 0,
       currentDay: 1,
       daysPerWeek,
+      catalogId: finalCatalogId ?? undefined,
       createdAt: new Date().toISOString(),
     };
     await storageRef.current.createExercise(exercise);
     setState(s => ({ ...s, exercises: [...s.exercises, exercise] }));
     await refreshExercise(exercise.id);
     localStorage.setItem('fitness-addict-current-exercise', exercise.id);
-  }, [state.user, refreshExercise]);
+  }, [state.user, state.catalogs, refreshExercise]);
+
+  const createCatalog = useCallback(async (name: string, daysPerWeek: number) => {
+    if (!storageRef.current || !state.user) throw new Error('No storage or user');
+    const catalog: Catalog = {
+      id: generateId(),
+      userId: state.user.id,
+      name: name.trim(),
+      daysPerWeek,
+      createdAt: new Date().toISOString(),
+    };
+    await storageRef.current.createCatalog(catalog);
+    setState(s => ({ ...s, catalogs: [...s.catalogs, catalog] }));
+    return catalog;
+  }, [state.user]);
 
   const selectExercise = useCallback(async (id: string) => {
     if (!id || typeof id !== 'string' || id.trim() === '') return;
     localStorage.setItem('fitness-addict-current-exercise', id);
     await refreshExercise(id);
+  }, [refreshExercise]);
+
+  const setExerciseCatalog = useCallback(async (exerciseId: string, catalogId: string | null) => {
+    if (!storageRef.current) return;
+    await storageRef.current.updateExercise(exerciseId, { catalogId: catalogId ?? undefined });
+    setState(s => ({
+      ...s,
+      exercises: s.exercises.map(e => e.id === exerciseId ? { ...e, catalogId: catalogId ?? undefined } : e),
+      currentExercise: s.currentExercise?.id === exerciseId
+        ? { ...s.currentExercise, catalogId: catalogId ?? undefined }
+        : s.currentExercise,
+    }));
+    await refreshExercise(exerciseId);
   }, [refreshExercise]);
 
   const deleteExercise = useCallback(async (id: string) => {
@@ -289,19 +380,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
 
     const recentLogs = await storage.getRecentLogs(exercise.id, 10);
+    const effectiveDpw = getEffectiveDaysPerWeek(exercise);
 
     const { updatedExercise, log } = processDay(
       exercise,
       completed,
       recentLogs,
       state.isRestDay,
+      effectiveDpw,
     );
 
     const dailyLog: DailyLog = { ...log, id: generateId() };
     await storage.createDailyLog(dailyLog);
     await storage.updateExercise(exercise.id, updatedExercise);
     await refreshExercise(exercise.id);
-  }, [state.currentExercise, state.isRestDay, refreshExercise]);
+  }, [state.currentExercise, state.isRestDay, refreshExercise, getEffectiveDaysPerWeek]);
 
   const addMoreReps = useCallback(async (additional: number) => {
     if (!storageRef.current || !state.currentExercise || !state.todayLog) return;
@@ -317,6 +410,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const prevLog = recentLogs.find(l => l.id === log.id);
     if (prevLog) prevLog.completed = newCompleted;
 
+    const effectiveDpw = getEffectiveDaysPerWeek(exercise);
     const { updatedExercise } = processDay(
       {
         ...exercise,
@@ -326,11 +420,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newCompleted,
       recentLogs,
       false,
+      effectiveDpw,
     );
 
     await storage.updateExercise(exercise.id, updatedExercise);
     await refreshExercise(exercise.id);
-  }, [state.currentExercise, state.todayLog, refreshExercise]);
+  }, [state.currentExercise, state.todayLog, refreshExercise, getEffectiveDaysPerWeek]);
 
   const skipRestDay = useCallback(async () => {
     if (!storageRef.current || !state.currentExercise) return;
@@ -411,6 +506,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refreshExercise(exercise.id);
   }, [state.currentExercise, state.todayLog, refreshExercise]);
 
+  const markCatalogRestDay = useCallback(async (catalogId: string) => {
+    if (!storageRef.current || !state.user) return;
+    const storage = storageRef.current;
+    const exercises = await storage.getExercisesByCatalog(catalogId);
+    const today = todayISO();
+    for (const ex of exercises) {
+      const existing = await storage.getTodayLog(ex.id);
+      if (existing) continue;
+      const log: DailyLog = {
+        id: generateId(),
+        exerciseId: ex.id,
+        dayNumber: ex.currentDay,
+        target: Math.floor(ex.currentTarget),
+        completed: 0,
+        date: today,
+        isRestDay: true,
+        catalogRest: true,
+      };
+      await storage.createDailyLog(log);
+      await storage.updateExercise(ex.id, { currentDay: ex.currentDay + 1 });
+    }
+    if (state.currentExercise && exercises.some(e => e.id === state.currentExercise?.id)) {
+      await refreshExercise(state.currentExercise.id);
+    }
+    setState(s => ({ ...s, setsVersion: s.setsVersion + 1 }));
+  }, [state.user, state.currentExercise, refreshExercise]);
+
+  const undoCatalogRestDay = useCallback(async (catalogId: string) => {
+    if (!storageRef.current) return;
+    const storage = storageRef.current;
+    const exercises = await storage.getExercisesByCatalog(catalogId);
+    const today = todayISO();
+    for (const ex of exercises) {
+      const log = await storage.getTodayLog(ex.id);
+      if (log?.isRestDay && (log as DailyLog & { catalogRest?: boolean }).catalogRest) {
+        await storage.deleteDailyLog(log.id);
+        await storage.updateExercise(ex.id, { currentDay: ex.currentDay - 1 });
+      }
+    }
+    if (state.currentExercise && exercises.some(e => e.id === state.currentExercise?.id)) {
+      await refreshExercise(state.currentExercise.id);
+    }
+    setState(s => ({ ...s, setsVersion: s.setsVersion + 1 }));
+  }, [state.currentExercise, refreshExercise]);
+
   const resetToday = useCallback(async () => {
     if (!storageRef.current || !state.currentExercise) return;
     const storage = storageRef.current;
@@ -466,7 +606,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const getRestBudget = useCallback(() => {
     if (!state.currentExercise) return { total: 0, used: 0, remaining: 0 };
-    const dpw = state.currentExercise.daysPerWeek ?? 7;
+    const dpw = getEffectiveDaysPerWeek(state.currentExercise);
     const total = 7 - dpw;
     const weekDates = getWeekDates();
     const weekStartStr = dateToISO(weekDates[0]);
@@ -477,7 +617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ).length;
 
     return { total, used, remaining: Math.max(0, total - used) };
-  }, [state.currentExercise, state.allLogs]);
+  }, [state.currentExercise, state.allLogs, getEffectiveDaysPerWeek]);
 
   const getExerciseTodayLog = useCallback(async (exerciseId: string) => {
     if (!storageRef.current) return null;
@@ -489,7 +629,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ex = state.exercises.find(e => e.id === exerciseId);
     if (!ex) return { total: 0, used: 0, remaining: 0 };
 
-    const dpw = ex.daysPerWeek ?? 7;
+    const dpw = getEffectiveDaysPerWeek(ex);
     const total = 7 - dpw;
     const weekDates = getWeekDates();
     const weekStartStr = dateToISO(weekDates[0]);
@@ -501,7 +641,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ).length;
 
     return { total, used, remaining: Math.max(0, total - used) };
-  }, [state.exercises]);
+  }, [state.exercises, getEffectiveDaysPerWeek]);
+
+  const getWeeklyGroupPreview = useCallback(async (exerciseIds: string[]) => {
+    const weekDates = getWeekDates();
+    const weekIso = weekDates.map(dateToISO);
+    const total = exerciseIds.length;
+    if (!storageRef.current || total === 0) {
+      return weekIso.map(date => ({ date, isRestDay: false, completed: 0, total, hasLog: false }));
+    }
+
+    const allLogs = await Promise.all(
+      exerciseIds.map(exerciseId => storageRef.current!.getDailyLogs(exerciseId))
+    );
+
+    return weekIso.map(date => {
+      let restCount = 0;
+      let completedCount = 0;
+      let hasLog = false;
+      for (const logs of allLogs) {
+        const dayLog = logs.find(log => log.date === date);
+        if (!dayLog) continue;
+        hasLog = true;
+        if (dayLog.isRestDay) {
+          restCount++;
+          continue;
+        }
+        completedCount++;
+      }
+      const isRestDay = total > 0 && restCount === total;
+      return {
+        date,
+        isRestDay,
+        completed: isRestDay ? 0 : completedCount,
+        total,
+        hasLog,
+      };
+    });
+  }, []);
 
   const exportData = useCallback(async (): Promise<ExportData> => {
     if (!storageRef.current || !state.user) throw new Error('No data');
@@ -512,8 +689,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!storageRef.current) return;
     await storageRef.current.importAll(data);
     const user = data.user;
+    const catalogs = data.catalogs ?? [];
     const exercises = data.exercises;
-    setState(s => ({ ...s, user, exercises }));
+    setState(s => ({ ...s, user, catalogs, exercises }));
     if (exercises.length > 0) {
       await refreshExercise(exercises[0].id);
     }
@@ -540,7 +718,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getDebugInfo = useCallback((): DebugInfo | null => {
     if (!state.currentExercise) return null;
     const ex = state.currentExercise;
-    const dpw = ex.daysPerWeek ?? 7;
+    const dpw = getEffectiveDaysPerWeek(ex);
     return {
       dailyRate: ex.dailyRate,
       effectiveRate: effectiveRate(ex.dailyRate, dpw),
@@ -550,7 +728,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rawTarget: advanceTarget(ex.currentTarget, ex.dailyRate, dpw),
       streak: ex.streak,
     };
-  }, [state.currentExercise, state.isRestDay]);
+  }, [state.currentExercise, state.isRestDay, getEffectiveDaysPerWeek]);
 
   const setDebugDailyRate = useCallback(async (rate: number) => {
     if (!storageRef.current || !state.currentExercise) return;
@@ -578,8 +756,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginGoogle,
         logout,
         addExercise,
+        createCatalog,
         selectExercise,
+        setExerciseCatalog,
         deleteExercise,
+        markCatalogRestDay,
+        undoCatalogRestDay,
+        getEffectiveDaysPerWeek,
+        getCatalogForExercise,
         completeDay,
         addMoreReps,
         skipRestDay,
@@ -588,8 +772,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetToday,
         editPastLog,
         getRestBudget,
-      getExerciseTodayLog,
-      getRestBudgetForExercise,
+        getExerciseTodayLog,
+        getRestBudgetForExercise,
+        getWeeklyGroupPreview,
         exportData,
         importData,
         getWeekTotal,
@@ -604,6 +789,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AppContext.Provider>
   );
+}
+
+async function getCatalogRestToday(storage: StorageAdapter, catalogId: string): Promise<boolean> {
+  const exercises = await storage.getExercisesByCatalog(catalogId);
+  if (exercises.length === 0) return false;
+  const log = await storage.getTodayLog(exercises[0].id);
+  return !!(log?.isRestDay && (log as DailyLog & { catalogRest?: boolean }).catalogRest);
 }
 
 async function backfillMissedDays(storage: StorageAdapter, exerciseId: string) {
@@ -659,9 +851,17 @@ async function refreshExerciseStatic(
   const ex = await storage.getExercise(exerciseId);
   if (!ex) return;
   const todayLog = await storage.getTodayLog(exerciseId);
+  let isRest = todayLog?.isRestDay ?? false;
+  if (!isRest && ex.catalogId) {
+    isRest = await getCatalogRestToday(storage, ex.catalogId);
+  }
   const allLogs = await storage.getDailyLogs(exerciseId);
-  const recentLogs = await storage.getRecentLogs(exerciseId, 10);
-  const isRest = shouldRestDay(ex, recentLogs);
+  if (!isRest) {
+    const recentLogs = await storage.getRecentLogs(exerciseId, 10);
+    const catalog = ex.catalogId ? await storage.getCatalog(ex.catalogId) : null;
+    const effectiveDpw = catalog ? catalog.daysPerWeek : (ex.daysPerWeek ?? 7);
+    isRest = shouldRestDay(ex, recentLogs, effectiveDpw);
+  }
 
   setState(s => ({
     ...s,

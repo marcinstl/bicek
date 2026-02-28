@@ -6,6 +6,14 @@ export interface User {
   createdAt: string;
 }
 
+export interface Catalog {
+  id: string;
+  userId: string;
+  name: string;
+  daysPerWeek: number;
+  createdAt: string;
+}
+
 export interface Exercise {
   id: string;
   userId: string;
@@ -17,6 +25,7 @@ export interface Exercise {
   totalReps: number;
   currentDay: number;
   daysPerWeek: number;
+  catalogId?: string | null;
   createdAt: string;
 }
 
@@ -28,12 +37,14 @@ export interface DailyLog {
   completed: number;
   date: string;
   isRestDay: boolean;
+  catalogRest?: boolean;
 }
 
 export interface ExportData {
   version: 1;
   exportedAt: string;
   user: User;
+  catalogs?: Catalog[];
   exercises: Exercise[];
   dailyLogs: DailyLog[];
 }

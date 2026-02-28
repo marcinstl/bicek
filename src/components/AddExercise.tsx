@@ -12,11 +12,15 @@ function getFrequencyHint(restDays: number): string {
   return `${training}x w tygodniu. Największy skok na sesję.`;
 }
 
+const NEW_CATALOG_VALUE = '__new__';
+
 export default function AddExercise({ onClose }: { onClose: () => void }) {
-  const { addExercise } = useApp();
+  const { addExercise, catalogs } = useApp();
   const [name, setName] = useState('');
   const [startValue, setStartValue] = useState('');
   const [restDays, setRestDays] = useState(2);
+  const [catalogChoice, setCatalogChoice] = useState<string>('');
+  const [newCatalogName, setNewCatalogName] = useState('');
 
   const daysPerWeek = 7 - restDays;
   const startNum = parseInt(startValue) || 0;
@@ -29,7 +33,9 @@ export default function AddExercise({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || startNum < 1) return;
-    await addExercise(name.trim(), startNum, daysPerWeek);
+    const catalogId = catalogChoice === '' || catalogChoice === NEW_CATALOG_VALUE ? undefined : catalogChoice;
+    const newName = catalogChoice === NEW_CATALOG_VALUE ? newCatalogName.trim() : undefined;
+    await addExercise(name.trim(), startNum, daysPerWeek, catalogId ?? null, newName || undefined);
     onClose();
   };
 
@@ -68,6 +74,34 @@ export default function AddExercise({ onClose }: { onClose: () => void }) {
               className="w-full py-2.5 px-3.5 bg-field border border-edge rounded-xl text-ink
                 text-sm placeholder:text-ink-faint focus:outline-none focus:border-emerald-500/50"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs text-ink-faint mb-1.5 uppercase tracking-wider">
+              Katalog
+            </label>
+            <select
+              value={catalogChoice}
+              onChange={e => setCatalogChoice(e.target.value)}
+              className="w-full py-2.5 px-3.5 bg-field border border-edge rounded-xl text-ink text-sm
+                focus:outline-none focus:border-emerald-500/50"
+            >
+              <option value="">Brak katalogu</option>
+              {catalogs.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              <option value={NEW_CATALOG_VALUE}>+ Nowy katalog...</option>
+            </select>
+            {catalogChoice === NEW_CATALOG_VALUE && (
+              <input
+                type="text"
+                value={newCatalogName}
+                onChange={e => setNewCatalogName(e.target.value)}
+                placeholder="Nazwa katalogu, np. Ćwiczenia w domu"
+                className="mt-2 w-full py-2 px-3 bg-field border border-edge rounded-xl text-ink text-sm
+                  placeholder:text-ink-faint focus:outline-none focus:border-emerald-500/50"
+              />
+            )}
           </div>
 
           <div>
