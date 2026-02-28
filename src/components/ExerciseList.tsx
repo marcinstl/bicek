@@ -182,7 +182,9 @@ function CatalogHeader({
                 {getDayLabel(date)}
               </div>
               {summary?.isRestDay ? (
-                <div className="text-[10px] font-medium text-amber-500 dark:text-amber-400/70">Przerwa</div>
+                <div className="flex items-center justify-center text-amber-500 dark:text-amber-400/70">
+                  <Coffee className="w-3.5 h-3.5" strokeWidth={2.2} />
+                </div>
               ) : ds < today && !summary?.hasLog ? (
                 <div className="text-ink-faint text-[10px]">—</div>
               ) : (

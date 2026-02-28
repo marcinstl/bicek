@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '@/hooks/useApp';
 import { effectiveRate } from '@/lib/progression';
+import { Coffee } from 'lucide-react';
 import { getWeekDates, getDayLabel, dateToISO, todayISO } from '@/lib/utils';
 import { DailyLog } from '@/lib/types';
 import PastDayModal from './PastDayModal';
@@ -95,8 +96,8 @@ export default function WeekForecast() {
                 </div>
 
                 {day.isRestDay ? (
-                  <div className="text-amber-500 dark:text-amber-400/70 text-[10px] font-medium leading-tight">
-                    rest
+                  <div className="flex items-center justify-center text-amber-500 dark:text-amber-400/70">
+                    <Coffee className="w-3.5 h-3.5" strokeWidth={2.2} />
                   </div>
                 ) : day.isPast && day.log ? (
                   <div className={`text-sm font-bold tabular-nums
