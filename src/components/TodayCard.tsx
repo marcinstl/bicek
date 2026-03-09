@@ -27,7 +27,7 @@ function saveSets(exerciseId: string, sets: number[]) {
 
 
 export default function TodayCard() {
-  const { currentExercise, todayLog, isRestDay, setsVersion, completeDay, addMoreReps, skipRestDay, markTodayRest, undoTodayRest, getRestBudget, getLevelInfo } = useApp();
+  const { currentExercise, todayLog, isRestDay, setsVersion, completeDay, addMoreReps, skipRestDay, markTodayRest, undoTodayRest, getRestBudget, getLevelInfo, getMultiplierBreakdown } = useApp();
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -52,11 +52,12 @@ export default function TodayCard() {
 
   const userLevel = getLevelInfo().level;
   const todayXp = todayLog && !todayLog.isRestDay && todayLog.xpEarned != null ? todayLog.xpEarned : 0;
+  const breakdown = getMultiplierBreakdown();
   const maxDailyXp = isRestDay
     ? 0
     : todayLog?.xpEarned != null
       ? todayLog.xpEarned
-      : xpForSession(target, userLevel, currentExercise.dailyRate, currentExercise.streak);
+      : xpForSession(target, userLevel, currentExercise.dailyRate, breakdown.consistencyNorm);
 
   const handleAddSet = () => {
     const val = parseInt(reps);

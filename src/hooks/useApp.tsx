@@ -7,7 +7,7 @@ import { IDBStorage } from '@/lib/idb-storage';
 import { SupabaseStorage } from '@/lib/supabase-storage';
 import { getSupabase } from '@/lib/supabase';
 import { processDay, shouldRestDay, advanceTarget, effectiveRate } from '@/lib/progression';
-import { xpForSession, levelFromTotalXp, totalXpForLevel, xpToNextLevel } from '@/lib/xp';
+import { xpForSession, levelFromTotalXp, totalXpForLevel, xpToNextLevel, xpMultiplierBreakdownFromConsistency } from '@/lib/xp';
 import { generateId, todayISO, dateToISO, getWeekStart, getWeekDates, getMonthStart } from '@/lib/utils';
 
 interface AppState {
@@ -51,6 +51,7 @@ interface AppContextType extends AppState {
   getAllTimeTotal: () => number;
   getDebugInfo: () => DebugInfo | null;
   getLevelInfo: () => { level: number; totalXp: number; xpToNext: number; xpRemaining: number; progress: number };
+  getMultiplierBreakdown: () => { mult: number; rateNorm: number; consistencyNorm: number };
   setDebugDailyRate: (rate: number) => Promise<void>;
   simulateNextDay: () => Promise<void>;
   setDebugMode: (on: boolean) => void;
@@ -249,6 +250,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startValue,
       currentTarget: startValue,
       dailyRate: 0.01,
+      consistency: 0,
       streak: 0,
       totalReps: 0,
       currentDay: 1,
@@ -316,6 +318,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify({
         currentTarget: exercise.currentTarget,
         dailyRate: exercise.dailyRate,
+        consistency: exercise.consistency ?? 0,
         streak: exercise.streak,
         totalReps: exercise.totalReps,
         currentDay: exercise.currentDay,
@@ -339,7 +342,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (!state.isRestDay && completed >= target && state.user) {
       const userLevel = levelFromTotalXp(state.user.totalXp ?? 0);
-      xpEarned = xpForSession(completed, userLevel, exercise.dailyRate, exercise.streak);
+      const consistency = exercise.consistency ?? 0;
+      xpEarned = xpForSession(completed, userLevel, exercise.dailyRate, consistency);
       finalExercise.totalXpEarned = (exercise.totalXpEarned ?? 0) + xpEarned;
     }
 
@@ -412,6 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify({
         currentTarget: exercise.currentTarget,
         dailyRate: exercise.dailyRate,
+        consistency: exercise.consistency ?? 0,
         streak: exercise.streak,
         totalReps: exercise.totalReps,
         currentDay: exercise.currentDay,
@@ -446,6 +451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify({
         currentTarget: exercise.currentTarget,
         dailyRate: exercise.dailyRate,
+        consistency: exercise.consistency ?? 0,
         streak: exercise.streak,
         totalReps: exercise.totalReps,
         currentDay: exercise.currentDay,
@@ -483,6 +489,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify({
         currentTarget: ex.currentTarget,
         dailyRate: ex.dailyRate,
+        consistency: ex.consistency ?? 0,
         streak: ex.streak,
         totalReps: ex.totalReps,
         currentDay: ex.currentDay,
@@ -697,6 +704,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { level, totalXp, xpToNext, xpRemaining, progress };
   }, [state.user?.totalXp]);
 
+  const getMultiplierBreakdown = useCallback(() => {
+    if (!state.currentExercise) return { mult: 1, rateNorm: 0, consistencyNorm: 0 };
+    const consistency = state.currentExercise.consistency ?? 0;
+    return xpMultiplierBreakdownFromConsistency(state.currentExercise.dailyRate, consistency);
+  }, [state.currentExercise]);
+
   const setDebugDailyRate = useCallback(async (rate: number) => {
     if (!storageRef.current || !state.currentExercise) return;
     await storageRef.current.updateExercise(state.currentExercise.id, { dailyRate: rate });
@@ -745,6 +758,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         getAllTimeTotal,
         getDebugInfo,
         getLevelInfo,
+        getMultiplierBreakdown,
         setDebugDailyRate,
         simulateNextDay,
         setDebugMode,

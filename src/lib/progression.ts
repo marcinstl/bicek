@@ -37,6 +37,18 @@ export function adjustDailyRate(dailyRate: number, completed: number, target: nu
   }
 }
 
+const CONSISTENCY_STEP = 0.05;
+
+/** Konsystencja 0–1: dobrze (≥0.85) +0.05, średnio (0.6–0.85) bez zmiany, słabo (&lt;0.6) −0.05. */
+export function adjustConsistency(consistency: number, completed: number, target: number): number {
+  if (target === 0) return consistency;
+  const ratio = completed / target;
+  const current = Math.max(0, Math.min(1, consistency));
+  if (ratio >= 0.85) return Math.min(1, current + CONSISTENCY_STEP);
+  if (ratio >= 0.6) return current;
+  return Math.max(0, current - CONSISTENCY_STEP);
+}
+
 export function shouldRestDay(
   exercise: Exercise,
   recentLogs: DailyLog[],
@@ -187,6 +199,7 @@ export function processDay(
   }
 
   const newDailyRate = adjustDailyRate(exercise.dailyRate, completed, shownTarget);
+  const newConsistency = adjustConsistency(exercise.consistency ?? 0, completed, shownTarget);
   const newTarget = advanceTarget(exercise.currentTarget, newDailyRate, dpw);
   const completionRatio = shownTarget > 0 ? completed / shownTarget : 0;
   const newStreak = completionRatio >= 0.85 ? exercise.streak + 1 : 0;
@@ -195,6 +208,7 @@ export function processDay(
     updatedExercise: {
       currentTarget: newTarget,
       dailyRate: newDailyRate,
+      consistency: newConsistency,
       streak: newStreak,
       totalReps: exercise.totalReps + completed,
       currentDay: exercise.currentDay + 1,

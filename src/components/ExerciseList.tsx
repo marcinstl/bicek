@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Coffee } from 'lucide-react';
 import { useApp } from '@/hooks/useApp';
-import { xpMultiplierFromRateAndStreak } from '@/lib/xp';
 import { todayISO } from '@/lib/utils';
 import type { DailyLog, Exercise } from '@/lib/types';
 
@@ -202,12 +201,6 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
           </div>
           <div className="text-[11px] text-ink-faint mt-0.5 flex items-center gap-2 flex-wrap">
             <span>{getEffectiveDaysPerWeek(exercise)}x/tydzień</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium tabular-nums" title="Mnożnik XP">
-              {xpMultiplierFromRateAndStreak(exercise.dailyRate, exercise.streak)}x XP
-            </span>
-            <span className="text-ink-soft tabular-nums" title="Łącznie zdobyte XP z tego ćwiczenia">
-              Zdobyte: {(exercise.totalXpEarned ?? 0)} XP
-            </span>
           </div>
         </div>
         <div className="text-right">

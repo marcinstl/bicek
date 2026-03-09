@@ -1,10 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/hooks/useApp';
 import { ExportData } from '@/lib/types';
-import { Moon, Download, Upload, Construction, LogOut } from 'lucide-react';
+import { Moon, Download, Upload, Construction, LogOut, BookOpen } from 'lucide-react';
 
 interface SideMenuProps {
   open: boolean;
@@ -108,6 +109,16 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
           </div>
 
           <nav className="flex-1 p-3 space-y-1">
+            <Link
+              href="/info"
+              onClick={onClose}
+              className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-ink-soft
+                hover:bg-field transition-colors"
+            >
+              <BookOpen className="w-4 h-4 text-ink-faint" />
+              O aplikacji
+            </Link>
+
             <button
               onClick={() => { toggle(); }}
               className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl text-sm text-ink-soft

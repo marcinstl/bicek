@@ -15,12 +15,14 @@ export interface Exercise {
   startValue: number;
   currentTarget: number;
   dailyRate: number;
+  /** Konsystencja 0–1: po sesji +0.05 (dobrze), 0 (średnio), −0.05 (słabo). Stare dane: brak pola → 0. */
+  consistency?: number;
   streak: number;
   totalReps: number;
   currentDay: number;
   daysPerWeek: number;
   createdAt: string;
-  /** Nie zapisywane – multiplier liczony z xpMultiplierFromRateAndStreak(dailyRate, streak). */
+  /** Nie zapisywane – multiplier z dailyRate i exercise.consistency. */
   xpMultiplier?: number;
   /** Suma XP zdobyta z tego ćwiczenia */
   totalXpEarned?: number;

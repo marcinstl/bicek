@@ -159,7 +159,7 @@ export class IDBStorage implements StorageAdapter {
       delete copy.catalogId;
       delete copy.currentDay; // obliczane przy imporcie z dailyLogs
       delete copy.xpMultiplier; // liczony z formuły, nie eksportować
-      return copy as Exercise;
+      return copy as unknown as Exercise;
     });
 
     return {
@@ -191,7 +191,7 @@ export class IDBStorage implements StorageAdapter {
       const logsForEx = data.dailyLogs.filter((l) => l.exerciseId === e.id);
       const currentDay =
         logsForEx.length === 0 ? 1 : Math.max(...logsForEx.map((l) => l.dayNumber)) + 1;
-      return { ...copy, currentDay } as Exercise;
+      return { ...copy, currentDay } as unknown as Exercise;
     });
     for (const e of exercisesToImport) await exStore.put(e);
 
