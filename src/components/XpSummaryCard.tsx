@@ -4,10 +4,8 @@ import { useState } from 'react';
 import { useApp } from '@/hooks/useApp';
 
 export default function XpSummaryCard() {
-  const { user, getMonthXpTotal, getMultiplierBreakdown } = useApp();
+  const { currentExercise, getMultiplierBreakdown } = useApp();
   const [showFormula, setShowFormula] = useState(false);
-  const monthXp = getMonthXpTotal();
-  const totalXp = user?.totalXp ?? 0;
   const breakdown = getMultiplierBreakdown();
 
   return (
@@ -24,19 +22,13 @@ export default function XpSummaryCard() {
             {breakdown.mult.toFixed(2)}×
           </button>
         </div>
-        {showFormula && (
-          <p className="text-[10px] text-ink-faint/80 font-mono">
-            rateNorm = {(breakdown.rateNorm * 100).toFixed(1)}%, consistency = {(breakdown.consistencyNorm * 100).toFixed(1)}% → 1 + 4×consistency×(0.5+0.5×rateNorm) = {breakdown.mult.toFixed(2)}
-          </p>
+        {showFormula && currentExercise && (
+          <div className="text-[10px] text-ink-faint/80 font-mono space-y-0.5">
+            <p>dailyRate = {(currentExercise.dailyRate ?? 0).toFixed(4)} ({(currentExercise.dailyRate ?? 0) * 100}%)</p>
+            <p>consistency = {(currentExercise.consistency ?? 0).toFixed(2)}</p>
+            <p>rateNorm = {(breakdown.rateNorm * 100).toFixed(1)}% → 1 + 4×consistency×(0.5+0.5×rateNorm) = {breakdown.mult.toFixed(2)}</p>
+          </div>
         )}
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-ink-faint uppercase tracking-wider">Ten miesiąc</span>
-        <span className="text-lg font-bold tabular-nums text-ink">{monthXp.toLocaleString('pl-PL')} XP</span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-ink-faint uppercase tracking-wider">Łącznie</span>
-        <span className="text-lg font-bold tabular-nums text-ink">{totalXp.toLocaleString('pl-PL')} XP</span>
       </div>
     </div>
   );
