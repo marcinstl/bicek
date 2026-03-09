@@ -3,24 +3,27 @@
 import { useApp } from '@/hooks/useApp';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { baseExpPerRep } from '@/lib/xp';
 import AddExercise from './AddExercise';
 import DebugForecast from './DebugForecast';
 import DebugPanel from './DebugPanel';
 import ExerciseSettings from './ExerciseSettings';
 import ExerciseList from './ExerciseList';
-import ProgressChart from './ProgressChart';
 import SideMenu from './SideMenu';
 import StatsCard from './StatsCard';
 import TodayCard from './TodayCard';
 import WeekForecast from './WeekForecast';
+import XpSummaryCard from './XpSummaryCard';
 
 export default function Dashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const exerciseIdFromUrl = searchParams.get('exercise');
-  const { user, exercises, currentExercise, selectExercise } = useApp();
+  const { user, exercises, currentExercise, selectExercise, getLevelInfo } = useApp();
+  const levelInfo = getLevelInfo();
   const [showAdd, setShowAdd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [levelSectionOpen, setLevelSectionOpen] = useState(false);
 
   const hasExercises = exercises.length > 0;
   const idFromUrl = exerciseIdFromUrl?.trim();
@@ -62,19 +65,53 @@ export default function Dashboard() {
                   router.push('/');
                 }
               }}
-              className="text-lg font-black text-ink tracking-tight active:scale-[0.97] transition-transform"
+              className="text-lg font-black text-ink tracking-tight active:scale-[0.97] transition-transform flex flex-col items-start gap-0.5"
             >
-              BICEK<span className="text-emerald-500">.</span>
+              <span className="flex items-center gap-0">
+                BICEK<span className="text-emerald-500">.</span>
+              </span>
             </button>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="w-8 h-8 flex items-center justify-center bg-field rounded-lg text-ink-soft
-              hover:text-ink hover:bg-edge transition-colors text-lg"
-          >
-            +
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLevelSectionOpen((v) => !v)}
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg text-sm font-bold tabular-nums transition-colors
+                ${levelSectionOpen ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-field text-ink-faint hover:text-ink hover:bg-edge'}`}
+            >
+              <span>{levelInfo.level} lvl</span>
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="w-8 h-8 flex items-center justify-center bg-field rounded-lg text-ink-soft
+                hover:text-ink hover:bg-edge transition-colors text-lg"
+            >
+              +
+            </button>
+          </div>
         </div>
+        {levelSectionOpen && (
+          <div className="max-w-sm mx-auto px-4 pb-3 pt-0 space-y-1">
+            <div className="w-full h-2 bg-field rounded-full overflow-hidden">
+              <span
+                className="block h-full bg-emerald-500 rounded-full transition-[width] duration-300"
+                style={{ width: `${Math.min(100, levelInfo.progress * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-ink-faint tabular-nums">
+              Łącznie: {levelInfo.totalXp} XP
+              {levelInfo.level < 100 && (
+                <> · {levelInfo.xpRemaining} do Lv.{levelInfo.level + 1}</>
+              )}
+            </p>
+            {levelInfo.level >= 100 && (
+              <p className="text-[11px] text-ink-faint tabular-nums">Maks. poziom</p>
+            )}
+            <p className="text-[10px] text-ink-faint/80 tabular-nums">
+              1 powtórzenie = {baseExpPerRep(levelInfo.level)} exp
+            </p>
+          </div>
+        )}
       </header>
 
       <main className="max-w-sm mx-auto px-4 py-6 space-y-4">
@@ -100,13 +137,13 @@ export default function Dashboard() {
             <WeekForecast />
             <TodayCard />
             <StatsCard />
-            <ProgressChart />
             <DebugForecast />
           </>
         )}
 
         {hasExercises && view === 'exercise' && (
           <>
+            <XpSummaryCard />
             <div className="h-px bg-edge my-2" />
             <ExerciseSettings />
           </>

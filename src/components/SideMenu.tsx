@@ -13,7 +13,8 @@ interface SideMenuProps {
 
 export default function SideMenu({ open, onClose }: SideMenuProps) {
   const { theme, toggle } = useTheme();
-  const { user, logout, exportData, importData, debugMode, setDebugMode } = useApp();
+  const { user, logout, exportData, importData, debugMode, setDebugMode, getLevelInfo } = useApp();
+  const { level, totalXp, xpRemaining, progress } = getLevelInfo();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -78,8 +79,27 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
             <div className="text-lg font-black text-ink tracking-tight">
               BICEK<span className="text-emerald-500">.</span>
             </div>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-sm font-bold text-ink tabular-nums">{totalXp} XP</span>
+                <span className="text-xs text-ink-faint tabular-nums">
+                  Lv.{level}
+                  {level < 100 && (
+                    <> · {xpRemaining} do Lv.{level + 1}</>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-field rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, progress * 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
             {user && (
-              <p className="text-xs text-ink-faint mt-1">
+              <p className="text-xs text-ink-faint mt-2">
                 {isLocal
                   ? 'Tryb lokalny · dane tylko w tej przeglądarce'
                   : 'Online'}
@@ -143,6 +163,9 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
           </nav>
 
           <div className="p-3 border-t border-edge space-y-1">
+            <p className="px-3 py-1.5 text-[11px] text-ink-faint tabular-nums">
+              wersja {process.env.NEXT_PUBLIC_BUILD_VERSION ?? '—'}
+            </p>
             <button
               onClick={() => setDebugMode(!debugMode)}
               className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl text-sm text-ink-faint

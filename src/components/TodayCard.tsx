@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/hooks/useApp';
 import { displayTarget } from '@/lib/progression';
+import { xpForSession } from '@/lib/xp';
 import { todayISO } from '@/lib/utils';
 import { Coffee } from 'lucide-react';
 
@@ -26,14 +27,18 @@ function saveSets(exerciseId: string, sets: number[]) {
 
 
 export default function TodayCard() {
-  const { currentExercise, todayLog, isRestDay, setsVersion, completeDay, addMoreReps, skipRestDay, markTodayRest, undoTodayRest, getRestBudget } = useApp();
+  const { currentExercise, todayLog, isRestDay, setsVersion, completeDay, addMoreReps, skipRestDay, markTodayRest, undoTodayRest, getRestBudget, getLevelInfo } = useApp();
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (currentExercise) {
-      setSets(loadSets(currentExercise.id));
+      if (todayLog?.sets?.length) {
+        setSets(todayLog.sets);
+      } else {
+        setSets(loadSets(currentExercise.id));
+      }
     }
   }, [currentExercise?.id, todayLog, setsVersion]);
 
@@ -44,6 +49,14 @@ export default function TodayCard() {
   const totalSets = sets.reduce((s, v) => s + v, 0);
   const currentTotal = alreadyDone ? todayLog.completed : totalSets;
   const budget = getRestBudget();
+
+  const userLevel = getLevelInfo().level;
+  const todayXp = todayLog && !todayLog.isRestDay && todayLog.xpEarned != null ? todayLog.xpEarned : 0;
+  const maxDailyXp = isRestDay
+    ? 0
+    : todayLog?.xpEarned != null
+      ? todayLog.xpEarned
+      : xpForSession(target, userLevel, currentExercise.dailyRate, currentExercise.streak);
 
   const handleAddSet = () => {
     const val = parseInt(reps);
@@ -57,7 +70,7 @@ export default function TodayCard() {
   const handleFinishDay = async () => {
     if (totalSets <= 0) return;
     setSubmitting(true);
-    await completeDay(totalSets);
+    await completeDay(totalSets, sets);
     setSubmitting(false);
   };
 
@@ -178,6 +191,11 @@ export default function TodayCard() {
               </span>
               <span className="text-ink-faint text-3xl font-bold">/{target}</span>
             </div>
+            {!isRestDay && maxDailyXp > 0 && (
+              <p className="text-[11px] text-ink-faint tabular-nums mt-0.5">
+                {todayXp}/{maxDailyXp} exp
+              </p>
+            )}
             <p className="text-ink-faint text-sm mt-1">
               {alreadyDone ? 'Dzień zakończony' : 'Twój cel na dziś'}
             </p>
@@ -185,6 +203,11 @@ export default function TodayCard() {
         ) : (
           <>
             <div className="text-6xl font-black tabular-nums text-ink">{target}</div>
+            {!isRestDay && maxDailyXp > 0 && (
+              <p className="text-[11px] text-ink-faint tabular-nums mt-0.5">
+                0/{maxDailyXp} exp
+              </p>
+            )}
             <p className="text-ink-faint text-sm mt-1">Twój cel na dziś</p>
           </>
         )}

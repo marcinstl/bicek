@@ -42,9 +42,9 @@ export default function WeekForecast() {
     let isRestDay = false;
 
     if (log) {
-      target = log.target;
       completed = log.completed;
       isRestDay = log.isRestDay;
+      target = isToday ? Math.floor(ex.currentTarget) : log.target;
     } else if (isToday) {
       target = Math.floor(ex.currentTarget);
     }

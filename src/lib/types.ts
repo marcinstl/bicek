@@ -4,14 +4,8 @@ export interface User {
   id: string;
   mode: AuthMode;
   createdAt: string;
-}
-
-export interface Catalog {
-  id: string;
-  userId: string;
-  name: string;
-  daysPerWeek: number;
-  createdAt: string;
+  /** Suma XP (level w stylu Tibii) */
+  totalXp?: number;
 }
 
 export interface Exercise {
@@ -25,8 +19,11 @@ export interface Exercise {
   totalReps: number;
   currentDay: number;
   daysPerWeek: number;
-  catalogId?: string | null;
   createdAt: string;
+  /** Nie zapisywane – multiplier liczony z xpMultiplierFromRateAndStreak(dailyRate, streak). */
+  xpMultiplier?: number;
+  /** Suma XP zdobyta z tego ćwiczenia */
+  totalXpEarned?: number;
 }
 
 export interface DailyLog {
@@ -37,14 +34,16 @@ export interface DailyLog {
   completed: number;
   date: string;
   isRestDay: boolean;
-  catalogRest?: boolean;
+  /** Serie (powtórzenia w każdej serii) – zapisywane przy zakończeniu dnia */
+  sets?: number[];
+  /** XP zdobyte tego dnia (cap: max za osiągnięcie celu; dodatkowe powtórzenia nie dają XP) */
+  xpEarned?: number;
 }
 
 export interface ExportData {
   version: 1;
   exportedAt: string;
   user: User;
-  catalogs?: Catalog[];
   exercises: Exercise[];
   dailyLogs: DailyLog[];
 }

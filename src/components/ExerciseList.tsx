@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Coffee } from 'lucide-react';
 import { useApp } from '@/hooks/useApp';
-import { dateToISO, getDayLabel, getWeekDates, todayISO } from '@/lib/utils';
+import { xpMultiplierFromRateAndStreak } from '@/lib/xp';
+import { todayISO } from '@/lib/utils';
 import type { DailyLog, Exercise } from '@/lib/types';
 
 type Budget = { total: number; used: number; remaining: number };
@@ -12,8 +13,44 @@ interface ExerciseListProps {
   onSelectExercise: (id: string) => void | Promise<void>;
 }
 
+type DayStatus = 'todo' | 'rest' | 'done';
+
 export default function ExerciseList({ onSelectExercise }: ExerciseListProps) {
-  const { exercises, currentExercise, catalogs } = useApp();
+  const {
+    exercises,
+    currentExercise,
+    getExerciseTodayLog,
+    getRestBudgetForExercise,
+    markExerciseRestDay,
+    setsVersion,
+  } = useApp();
+  const [statusById, setStatusById] = useState<Record<string, DayStatus>>({});
+  const [restBusy, setRestBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const next: Record<string, DayStatus> = {};
+      for (const ex of exercises) {
+        const log = await getExerciseTodayLog(ex.id);
+        if (!active) return;
+        if (!log) {
+          next[ex.id] = 'todo';
+          continue;
+        }
+        if (log.isRestDay) {
+          next[ex.id] = 'rest';
+          continue;
+        }
+        next[ex.id] = log.completed >= log.target ? 'done' : 'todo';
+      }
+      if (active) setStatusById(next);
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [exercises, getExerciseTodayLog, setsVersion]);
 
   if (exercises.length === 0) {
     return (
@@ -26,37 +63,52 @@ export default function ExerciseList({ onSelectExercise }: ExerciseListProps) {
     );
   }
 
-  const groups = exercises.reduce<{ key: string; label: string; items: Exercise[] }[]>(
-    (acc, ex) => {
-      const key = ex.catalogId ?? '__none__';
-      const label = ex.catalogId
-        ? (catalogs.find(c => c.id === ex.catalogId)?.name ?? 'Katalog')
-        : 'Bez katalogu';
-      let group = acc.find(g => g.key === key);
-      if (!group) {
-        group = { key, label, items: [] };
-        acc.push(group);
-      }
-      group.items.push(ex);
-      return acc;
-    },
-    [],
-  );
+  const toDo = exercises.filter(ex => statusById[ex.id] === 'todo');
+  const rest = exercises.filter(ex => statusById[ex.id] === 'rest');
+  const done = exercises.filter(ex => statusById[ex.id] === 'done');
 
-  const grouped = [...groups].sort((a, b) => {
-    if (a.key === '__none__') return -1;
-    if (b.key === '__none__') return 1;
-    return a.label.localeCompare(b.label);
-  });
+  const handleMarkAllRest = async () => {
+    if (restBusy || toDo.length === 0) return;
+    setRestBusy(true);
+    try {
+      for (const ex of toDo) {
+        const b = await getRestBudgetForExercise(ex.id);
+        if (b.remaining > 0) await markExerciseRestDay(ex.id);
+      }
+    } finally {
+      setRestBusy(false);
+    }
+  };
+
+  const groups: { key: string; label: string; items: Exercise[]; showRestButton?: boolean }[] = [];
+  if (toDo.length > 0) groups.push({ key: 'todo', label: 'Do zrobienia', items: toDo, showRestButton: true });
+  if (rest.length > 0) groups.push({ key: 'rest', label: 'Przerwa', items: rest });
+  if (done.length > 0) groups.push({ key: 'done', label: 'Zakończone', items: done });
 
   return (
     <div className="space-y-4">
-      {grouped.map(({ key, label, items }) => (
+      {groups.map(({ key, label, items, showRestButton }) => (
         <div
           key={key}
           className="bg-panel border border-edge rounded-2xl overflow-hidden"
         >
-          <CatalogHeader catalogKey={key} label={label} items={items} />
+          <div className="px-4 py-2.5 bg-field/50 border-b border-edge flex items-center justify-between gap-3">
+            <span className="text-xs font-medium text-ink-faint uppercase tracking-wider">
+              {label}
+            </span>
+            {showRestButton && (
+              <button
+                type="button"
+                onClick={handleMarkAllRest}
+                disabled={restBusy}
+                title="Przerwa na dziś dla wszystkich z grupy (jeśli mają przerwy do wykorzystania)"
+                className="w-7 h-7 rounded-lg border border-edge bg-panel flex items-center justify-center
+                  text-ink-faint hover:text-amber-500 hover:border-amber-500/30 transition-colors disabled:opacity-50"
+              >
+                <Coffee className="w-[14px] h-[14px]" strokeWidth={2.2} />
+              </button>
+            )}
+          </div>
           <div className="p-3 space-y-2">
             {items.map(ex => (
               <ExerciseListCard
@@ -69,133 +121,6 @@ export default function ExerciseList({ onSelectExercise }: ExerciseListProps) {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-interface WeeklyGroupDay {
-  date: string;
-  isRestDay: boolean;
-  completed: number;
-  total: number;
-  hasLog: boolean;
-}
-
-function CatalogHeader({
-  catalogKey,
-  label,
-  items,
-}: {
-  catalogKey: string;
-  label: string;
-  items: Exercise[];
-}) {
-  const {
-    getWeeklyGroupPreview,
-    markCatalogRestDay,
-    undoCatalogRestDay,
-    setsVersion,
-  } = useApp();
-  const [weekPreview, setWeekPreview] = useState<WeeklyGroupDay[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const today = todayISO();
-  const weekDates = useMemo(() => getWeekDates(), [today]);
-  const exerciseIds = useMemo(() => items.map(ex => ex.id), [items]);
-  const exerciseIdsKey = useMemo(() => exerciseIds.join('|'), [exerciseIds]);
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const ids = exerciseIdsKey.length > 0 ? exerciseIdsKey.split('|') : [];
-      const preview = await getWeeklyGroupPreview(ids);
-      if (!active) return;
-      setWeekPreview(preview);
-    };
-    load();
-    return () => {
-      active = false;
-    };
-  }, [exerciseIdsKey, getWeeklyGroupPreview, setsVersion]);
-
-  const todaySummary = weekPreview.find(day => day.date === today);
-  const canToggleCatalogRest = catalogKey !== '__none__';
-  const isCatalogRestToday = !!(canToggleCatalogRest && todaySummary?.isRestDay);
-
-  const handleToggleCatalogRest = async () => {
-    if (!canToggleCatalogRest || busy) return;
-    setBusy(true);
-    try {
-      if (isCatalogRestToday) {
-        await undoCatalogRestDay(catalogKey);
-      } else {
-        await markCatalogRestDay(catalogKey);
-      }
-      const updatedPreview = await getWeeklyGroupPreview(exerciseIds);
-      setWeekPreview(updatedPreview);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="px-4 py-2.5 bg-field/50 border-b border-edge space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium text-ink-faint uppercase tracking-wider">
-          {label}
-        </span>
-        {canToggleCatalogRest && (
-          <button
-            type="button"
-            onClick={handleToggleCatalogRest}
-            disabled={busy}
-            title={isCatalogRestToday ? 'Cofnij przerwę katalogu' : 'Przerwa dla całego katalogu'}
-            className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors
-              ${isCatalogRestToday
-                ? 'text-amber-500 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20'
-                : 'text-ink-faint border-edge bg-panel hover:text-ink-soft hover:border-amber-500/30'}
-              ${busy ? 'opacity-60 cursor-wait' : ''}
-            `}
-          >
-            <Coffee className="w-[14px] h-[14px]" strokeWidth={2.2} />
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {weekDates.map((date, index) => {
-          const ds = dateToISO(date);
-          const isToday = ds === today;
-          const summary = weekPreview.find(day => day.date === ds);
-          return (
-            <div
-              key={index}
-              className={`rounded-lg border px-1 py-1 text-center
-                ${isToday
-                  ? 'bg-emerald-500/15 border-emerald-500/30'
-                  : 'border-edge bg-panel/70'
-                }`}
-            >
-              <div className={`text-[9px] uppercase tracking-wider mb-0.5
-                ${isToday ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-ink-faint'}
-              `}>
-                {getDayLabel(date)}
-              </div>
-              {summary?.isRestDay ? (
-                <div className="flex items-center justify-center text-amber-500 dark:text-amber-400/70">
-                  <Coffee className="w-3.5 h-3.5" strokeWidth={2.2} />
-                </div>
-              ) : ds < today && !summary?.hasLog ? (
-                <div className="text-ink-faint text-[10px]">—</div>
-              ) : (
-                <div className="text-[10px] font-semibold tabular-nums text-ink-soft">
-                  {summary ? `${summary.completed}/${summary.total}` : `0/${exerciseIds.length}`}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -250,9 +175,7 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
   };
 
   const isRestDay = todayLog?.isRestDay ?? false;
-  const target = todayLog
-    ? todayLog.target
-    : Math.floor(exercise.currentTarget);
+  const target = Math.floor(exercise.currentTarget);
 
   let completed = 0;
   if (todayLog && !todayLog.isRestDay) {
@@ -262,7 +185,8 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
   }
 
   const hasProgress = completed > 0;
-  const done = !isRestDay && hasProgress && completed >= target;
+  const targetForDone = todayLog && !todayLog.isRestDay ? todayLog.target : target;
+  const done = !isRestDay && hasProgress && completed >= targetForDone;
 
   return (
     <button
@@ -276,8 +200,14 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
           <div className="text-sm font-semibold text-ink">
             {exercise.name}
           </div>
-          <div className="text-[11px] text-ink-faint mt-0.5">
-            {getEffectiveDaysPerWeek(exercise)}x/tydzień
+          <div className="text-[11px] text-ink-faint mt-0.5 flex items-center gap-2 flex-wrap">
+            <span>{getEffectiveDaysPerWeek(exercise)}x/tydzień</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium tabular-nums" title="Mnożnik XP">
+              {xpMultiplierFromRateAndStreak(exercise.dailyRate, exercise.streak)}x XP
+            </span>
+            <span className="text-ink-soft tabular-nums" title="Łącznie zdobyte XP z tego ćwiczenia">
+              Zdobyte: {(exercise.totalXpEarned ?? 0)} XP
+            </span>
           </div>
         </div>
         <div className="text-right">
@@ -309,18 +239,22 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
       </div>
 
       {budget.total > 0 && (
-        <div className="flex items-center gap-1.5 mt-3">
+        <div className={`flex items-center gap-1.5 mt-3 ${budget.remaining === 0 ? 'text-red-500/70' : ''}`}>
           {Array.from({ length: budget.total }).map((_, i) => (
             <div
               key={i}
               className={`w-2 h-2 rounded-full transition-colors ${
-                i < budget.used
-                  ? 'bg-amber-500/50'
-                  : 'bg-emerald-500/40'
+                budget.remaining === 0
+                  ? i < budget.used
+                    ? 'bg-red-400/40'
+                    : 'bg-red-300/25'
+                  : i < budget.used
+                    ? 'bg-amber-500/50'
+                    : 'bg-emerald-500/40'
               }`}
             />
           ))}
-          <span className="text-[10px] text-ink-faint ml-1">
+          <span className="text-[10px] ml-1 text-inherit">
             {budget.remaining > 0
               ? `${budget.remaining} ${budget.remaining === 1 ? 'przerwa' : 'przerwy'} do wykorzystania`
               : 'Brak przerw'}
@@ -330,4 +264,3 @@ function ExerciseListCard({ exercise, selected, onSelect }: ExerciseListCardProp
     </button>
   );
 }
-

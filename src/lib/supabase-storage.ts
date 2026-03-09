@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { User, Catalog, Exercise, DailyLog, ExportData } from './types';
+import { User, Exercise, DailyLog, ExportData } from './types';
 import { StorageAdapter } from './storage';
 import { todayISO } from './utils';
 
@@ -23,43 +23,8 @@ export class SupabaseStorage implements StorageAdapter {
     await this.supabase.from('users').upsert(user);
   }
 
-  async getCatalogs(userId: string): Promise<Catalog[]> {
-    const { data } = await this.supabase
-      .from('catalogs')
-      .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: true });
-    return (data as Catalog[]) ?? [];
-  }
-
-  async getCatalog(id: string): Promise<Catalog | null> {
-    if (!id || typeof id !== 'string' || id.trim() === '') return null;
-    const { data } = await this.supabase.from('catalogs').select('*').eq('id', id).single();
-    return data as Catalog | null;
-  }
-
-  async createCatalog(catalog: Catalog): Promise<void> {
-    await this.supabase.from('catalogs').insert(catalog);
-  }
-
-  async updateCatalog(id: string, data: Partial<Catalog>): Promise<void> {
-    await this.supabase.from('catalogs').update(data).eq('id', id);
-  }
-
-  async deleteCatalog(id: string): Promise<void> {
-    await this.supabase.from('exercises').update({ catalogId: null }).eq('catalogId', id);
-    await this.supabase.from('catalogs').delete().eq('id', id);
-  }
-
-  async getExercisesByCatalog(catalogId: string): Promise<Exercise[]> {
-    const catalog = await this.getCatalog(catalogId);
-    if (!catalog) return [];
-    const { data } = await this.supabase
-      .from('exercises')
-      .select('*')
-      .eq('catalogId', catalogId)
-      .order('createdAt', { ascending: true });
-    return (data as Exercise[]) ?? [];
+  async updateUser(userId: string, data: Partial<User>): Promise<void> {
+    await this.supabase.from('users').update(data).eq('id', userId);
   }
 
   async getExercises(userId: string): Promise<Exercise[]> {
@@ -142,7 +107,6 @@ export class SupabaseStorage implements StorageAdapter {
 
   async exportAll(userId: string): Promise<ExportData> {
     const user = await this.getUser();
-    const catalogs = await this.getCatalogs(userId);
     const exercises = await this.getExercises(userId);
     const allLogs: DailyLog[] = [];
 
@@ -151,12 +115,19 @@ export class SupabaseStorage implements StorageAdapter {
       allLogs.push(...logs);
     }
 
+    const exercisesForExport = exercises.map((e) => {
+      const copy = { ...e } as Record<string, unknown>;
+      delete copy.catalogId;
+      delete copy.currentDay; // obliczane przy imporcie z dailyLogs
+      delete copy.xpMultiplier; // liczony z formuły, nie eksportować
+      return copy as Exercise;
+    });
+
     return {
       version: 1,
       exportedAt: new Date().toISOString(),
       user: user!,
-      catalogs,
-      exercises,
+      exercises: exercisesForExport,
       dailyLogs: allLogs,
     };
   }
@@ -164,13 +135,16 @@ export class SupabaseStorage implements StorageAdapter {
   async importAll(data: ExportData): Promise<void> {
     await this.supabase.from('users').upsert(data.user);
 
-    if (data.catalogs?.length) {
-      for (const c of data.catalogs) {
-        await this.supabase.from('catalogs').upsert(c);
-      }
-    }
-
-    for (const ex of data.exercises) {
+    const exercisesToImport = data.exercises.map((e) => {
+      const copy = { ...e } as Record<string, unknown>;
+      delete copy.catalogId;
+      delete copy.xpMultiplier; // nie persystować, multiplier z formuły
+      const logsForEx = data.dailyLogs.filter((l) => l.exerciseId === e.id);
+      const currentDay =
+        logsForEx.length === 0 ? 1 : Math.max(...logsForEx.map((l) => l.dayNumber)) + 1;
+      return { ...copy, currentDay } as Exercise;
+    });
+    for (const ex of exercisesToImport) {
       await this.supabase.from('exercises').upsert(ex);
     }
 
