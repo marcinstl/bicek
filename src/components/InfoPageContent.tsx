@@ -188,8 +188,7 @@ function ConsistencyCalculatorSection() {
         </div>
         <p className="text-sm text-ink-soft">
           Ratio = {ratio.toFixed(2)} → {outcome}<br />
-          → <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">nowa konsystencja = {newConsistency.toFixed(2)}</strong>
-          {delta !== 0 && <span className="text-ink-faint"> ({delta > 0 ? '+' : ''}{delta.toFixed(2)})</span>}
+          → <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">{newConsistency.toFixed(2)}</strong>
         </p>
       </div>
     </Section>
@@ -243,8 +242,8 @@ function MultiplierSection() {
           />
           <span className="text-xs text-ink-soft tabular-nums">{consistency.toFixed(2)}</span>
         </div>
-        <p className="text-sm">
-          <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{mult.toFixed(2)}×</span>
+        <p className="text-sm text-ink-soft">
+          → <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">{mult.toFixed(2)}×</strong>
         </p>
       </div>
     </Section>
@@ -351,9 +350,8 @@ function LevelFromXpSection() {
           className="w-full rounded-lg bg-field border border-edge px-3 py-2 text-ink text-sm"
         />
         <p className="mt-2 text-sm text-ink-soft">
-          Level = <strong className="text-ink">{level}</strong>
-          {' · '}do levelu {level + 1} brakuje <strong className="text-ink">{xpRemaining} XP</strong>
-          {' '}(łącznie na L{level + 1}: {nextStart} XP).
+          Level = {level}<br />
+          → <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">{xpRemaining} XP do L{level + 1}</strong>
         </p>
       </div>
     </Section>
