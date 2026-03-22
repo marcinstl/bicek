@@ -7,7 +7,7 @@ import { useWorkout, useWorkoutSets } from '@/hooks/useWorkout';
 import { useExercises } from '@/hooks/useExercises';
 import { Button } from '@/components/ui/Button';
 import { PageSpinner } from '@/components/ui/Spinner';
-import { generateWorkoutSummary, formatSetText } from '@/lib/api';
+import { generateWorkoutSummary, formatSetText } from '@/lib/api-router';
 
 interface Props {
   params: Promise<{ planId: string }>;

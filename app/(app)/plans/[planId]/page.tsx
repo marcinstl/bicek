@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePlans } from '@/hooks/usePlans';
 import { useExercises, useCreateExercise, useUpdateExercise, useDeleteExercise } from '@/hooks/useExercises';
 import { useActiveWorkout, useStartWorkout } from '@/hooks/useWorkout';
+import { useWorkoutTimer } from '@/components/providers/WorkoutTimerContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -23,10 +24,14 @@ export default function PlanDetailPage({ params }: Props) {
   const { data: plans } = usePlans();
   const { data: exercises, isLoading } = useExercises(planId);
   const { data: activeWorkout } = useActiveWorkout(planId);
+  const { activeWorkoutId } = useWorkoutTimer();
   const createExercise = useCreateExercise();
   const updateExercise = useUpdateExercise(planId);
   const deleteExercise = useDeleteExercise(planId);
   const startWorkout = useStartWorkout();
+
+  // Another workout (on a different plan) is in progress
+  const otherWorkoutActive = activeWorkoutId && activeWorkoutId !== activeWorkout?.id;
 
   const plan = plans?.find((p) => p.id === planId);
 
@@ -129,6 +134,13 @@ export default function PlanDetailPage({ params }: Props) {
             <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
             Resume workout
           </button>
+        ) : otherWorkoutActive ? (
+          <div className="w-full bg-gray-100 border border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-sm text-gray-500">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Another workout is already in progress
+          </div>
         ) : (
           <Button
             onClick={handleStartWorkout}
@@ -245,6 +257,14 @@ export default function PlanDetailPage({ params }: Props) {
 
 // ─── Exercise form component ─────────────────────────────────────────────────
 
+const UNIT_PRESETS = ['kg', 'km'] as const;
+const METRIC_OPTIONS: { value: MetricType | ''; label: string }[] = [
+  { value: '', label: 'None' },
+  { value: 'reps', label: 'Reps' },
+  { value: 'time_sec', label: 'Time (sec)' },
+  { value: 'time_min', label: 'Time (min)' },
+];
+
 interface ExerciseFormProps {
   form: { name: string; unit: string; metric_type: MetricType | '' };
   setForm: React.Dispatch<React.SetStateAction<{ name: string; unit: string; metric_type: MetricType | '' }>>;
@@ -266,28 +286,61 @@ function ExerciseForm({ form, setForm, error, onSubmit, onCancel, loading, submi
         autoFocus
       />
 
-      <Input
-        label="Unit (optional)"
-        placeholder="e.g. kg, lb, km"
-        value={form.unit}
-        onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-      />
-
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">Metric type (optional)</label>
-        <div className="grid grid-cols-3 gap-2">
-          {(['', 'reps', 'time'] as const).map((val) => (
+      {/* Unit pills */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-700">Unit (optional)</label>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, unit: '' }))}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
+              form.unit === ''
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
+            }`}
+          >
+            None
+          </button>
+          {UNIT_PRESETS.map((u) => (
             <button
-              key={val}
+              key={u}
               type="button"
-              onClick={() => setForm((f) => ({ ...f, metric_type: val }))}
-              className={`py-2 rounded-xl text-sm font-medium border transition-all ${
-                form.metric_type === val
+              onClick={() => setForm((f) => ({ ...f, unit: f.unit === u ? '' : u }))}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
+                form.unit === u
                   ? 'bg-emerald-600 text-white border-emerald-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
               }`}
             >
-              {val === '' ? 'None' : val.charAt(0).toUpperCase() + val.slice(1)}
+              {u}
+            </button>
+          ))}
+          <input
+            type="text"
+            placeholder="custom…"
+            value={UNIT_PRESETS.includes(form.unit as typeof UNIT_PRESETS[number]) || form.unit === '' ? '' : form.unit}
+            onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+            className="flex-1 min-w-[80px] rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          />
+        </div>
+      </div>
+
+      {/* Metric type pills */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-700">Metric type (optional)</label>
+        <div className="grid grid-cols-2 gap-2">
+          {METRIC_OPTIONS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, metric_type: value }))}
+              className={`py-2 rounded-xl text-sm font-medium border transition-all ${
+                form.metric_type === value
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>

@@ -1,8 +1,27 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
+import { OFFLINE_COOKIE } from '@/lib/api-router';
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+
+  const { pathname } = request.nextUrl;
+  const isAuthPath = pathname === '/login' || pathname === '/signup';
+  const isWaitingPath = pathname === '/waiting';
+
+  // Offline mode bypass (only available when NEXT_PUBLIC_OFFLINE_MODE is enabled)
+  const offlineModeEnabled = process.env.NEXT_PUBLIC_OFFLINE_MODE === 'true';
+  const isOffline = offlineModeEnabled && request.cookies.get(OFFLINE_COOKIE)?.value === 'true';
+
+  if (isOffline) {
+    // Offline user is always "logged in" — redirect away from auth pages
+    if (isAuthPath) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/plans';
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,10 +45,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const isAuthPath = pathname === '/login' || pathname === '/signup';
-  const isWaitingPath = pathname === '/waiting';
 
   // Not logged in → send to login
   if (!user && !isAuthPath) {

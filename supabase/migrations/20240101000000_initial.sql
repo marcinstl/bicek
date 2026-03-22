@@ -52,7 +52,7 @@ create table if not exists exercises (
   plan_id     uuid not null references plans(id) on delete cascade,
   name        text not null,
   unit        text,
-  metric_type text check (metric_type in ('reps', 'time')),
+  metric_type text check (metric_type in ('reps', 'time', 'time_sec', 'time_min')),
   created_at  timestamptz not null default now(),
   constraint at_least_one_config check (unit is not null or metric_type is not null)
 );

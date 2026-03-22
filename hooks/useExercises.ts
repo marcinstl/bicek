@@ -6,7 +6,7 @@ import {
   deleteExercise,
   getExercises,
   updateExercise,
-} from '@/lib/api';
+} from '@/lib/api-router';
 import type { CreateExerciseInput, UpdateExerciseInput } from '@/lib/types';
 
 export const exerciseKeys = {

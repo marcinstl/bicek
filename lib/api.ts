@@ -163,6 +163,19 @@ export async function startWorkout(planId: string): Promise<Workout> {
   return data;
 }
 
+export async function getAnyActiveWorkout(): Promise<Workout | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('*')
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function getActiveWorkout(planId: string): Promise<Workout | null> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -248,22 +261,79 @@ export async function deleteSet(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface ExerciseHistoryEntry {
+  workout: Workout;
+  sets: Set[];
+}
+
+export async function getExerciseHistory(
+  exerciseId: string,
+  excludeWorkoutId: string
+): Promise<ExerciseHistoryEntry[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('sets')
+    .select('*, workouts!inner(id, started_at, ended_at, plan_id, user_id, created_at)')
+    .eq('exercise_id', exerciseId)
+    .not('workouts.ended_at', 'is', null)
+    .neq('workout_id', excludeWorkoutId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  // Group by workout
+  const map = new Map<string, ExerciseHistoryEntry>();
+  for (const row of data ?? []) {
+    const w = (row as typeof row & { workouts: Workout }).workouts;
+    if (!map.has(w.id)) map.set(w.id, { workout: w, sets: [] });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { workouts: _w, ...set } = row as typeof row & { workouts: Workout };
+    map.get(w.id)!.sets.push(set as Set);
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => b.workout.started_at.localeCompare(a.workout.started_at)
+  );
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
+
+function formatTime(duration_seconds: number, metric_type: string): string {
+  if (metric_type === 'time_min') {
+    const mins = Math.floor(duration_seconds / 60);
+    const secs = duration_seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}min`;
+  }
+  return `${duration_seconds}s`;
+}
+
+function isTimeMetric(metric_type: string | null): boolean {
+  return metric_type === 'time' || metric_type === 'time_sec' || metric_type === 'time_min';
+}
 
 export function formatSetText(
   s: Pick<Set, 'value' | 'reps' | 'duration_seconds' | 'note'>,
   exercise: Pick<Exercise, 'unit' | 'metric_type'>
 ): string {
   let line = '';
+  const mt = exercise.metric_type ?? '';
 
-  if (exercise.unit && s.value != null && exercise.metric_type === 'reps' && s.reps != null) {
+  if (exercise.unit && s.value != null && isTimeMetric(mt) && s.duration_seconds != null) {
+    // e.g. 40km in 30min
+    line = `${s.value}${exercise.unit} in ${formatTime(s.duration_seconds, mt)}`;
+  } else if (exercise.unit && s.value != null && mt === 'reps' && s.reps != null) {
+    // e.g. 100kg x 10
+    line = `${s.value}${exercise.unit} x ${s.reps}`;
+  } else if (exercise.unit && s.value != null && s.duration_seconds != null) {
+    // unit + time but no explicit metric_type match
+    line = `${s.value}${exercise.unit} in ${formatTime(s.duration_seconds, mt)}`;
+  } else if (exercise.unit && s.value != null && s.reps != null) {
     line = `${s.value}${exercise.unit} x ${s.reps}`;
   } else if (exercise.unit && s.value != null) {
+    // just distance / weight alone
     line = `${s.value}${exercise.unit}`;
-  } else if (exercise.metric_type === 'reps' && s.reps != null) {
+  } else if (mt === 'reps' && s.reps != null) {
     line = `${s.reps} reps`;
-  } else if (exercise.metric_type === 'time' && s.duration_seconds != null) {
-    line = `${s.duration_seconds}s`;
+  } else if (isTimeMetric(mt) && s.duration_seconds != null) {
+    line = formatTime(s.duration_seconds, mt);
   } else {
     line = 'set';
   }

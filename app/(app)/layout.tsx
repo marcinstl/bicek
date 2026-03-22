@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from '@/lib/api';
+import { isOfflineMode, disableOfflineMode } from '@/lib/api-router';
+import { WorkoutTimerProvider, useWorkoutTimer, formatDuration } from '@/components/providers/WorkoutTimerContext';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -26,24 +28,49 @@ const navItems = [
   },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+function AppHeader() {
   const router = useRouter();
+  const offline = isOfflineMode();
+  const { activeWorkoutId, activePlanId, elapsed } = useWorkoutTimer();
 
   async function handleSignOut() {
+    if (offline) {
+      disableOfflineMode();
+      router.push('/login');
+      return;
+    }
     await signOut();
     router.push('/login');
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
+      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <Link href="/plans" className="flex items-center font-black tracking-tight text-gray-900 text-xl">
             BICEK<span className="text-emerald-500">.</span>
           </Link>
 
+          {activeWorkoutId && activePlanId && (
+            <Link
+              href={`/plans/${activePlanId}/workout?workoutId=${activeWorkoutId}`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-sm font-mono font-semibold text-emerald-700 tabular-nums">
+                {formatDuration(elapsed)}
+              </span>
+            </Link>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {offline && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs font-mono text-amber-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              offline
+            </span>
+          )}
           <button
             onClick={handleSignOut}
             className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
@@ -51,34 +78,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             Sign out
           </button>
         </div>
-      </header>
+      </div>
+    </header>
+  );
+}
 
-      {/* Main */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
-        {children}
-      </main>
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
 
-      {/* Bottom nav */}
-      <nav className="sticky bottom-0 bg-white border-t border-gray-100 safe-bottom">
-        <div className="max-w-2xl mx-auto flex">
-          {navItems.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(item.href + '/');
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex-1 flex flex-col items-center justify-center py-3 gap-0.5 text-xs font-medium transition-colors',
-                  active ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-700'
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
-    </div>
+  return (
+    <WorkoutTimerProvider>
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+
+        {/* Main */}
+        <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+          {children}
+        </main>
+
+        {/* Bottom nav */}
+        <nav className="sticky bottom-0 bg-white border-t border-gray-100 safe-bottom">
+          <div className="max-w-2xl mx-auto flex">
+            {navItems.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(item.href + '/');
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex-1 flex flex-col items-center justify-center py-3 gap-0.5 text-xs font-medium transition-colors',
+                    active ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-700'
+                  )}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
+    </WorkoutTimerProvider>
   );
 }

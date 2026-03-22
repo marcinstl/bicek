@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from '@/hooks/usePlans';
+import { useWorkoutTimer } from '@/components/providers/WorkoutTimerContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -12,6 +13,7 @@ import type { Plan } from '@/lib/types';
 
 export default function PlansPage() {
   const { data: plans, isLoading, error } = usePlans();
+  const { activePlanId } = useWorkoutTimer();
   const createPlan = useCreatePlan();
   const updatePlan = useUpdatePlan();
   const deletePlan = useDeletePlan();
@@ -75,17 +77,31 @@ export default function PlansPage() {
         />
       ) : (
         <ul className="flex flex-col gap-3">
-          {plans?.map((plan) => (
+          {[...(plans ?? [])].sort((a, b) => {
+            if (a.id === activePlanId) return -1;
+            if (b.id === activePlanId) return 1;
+            return 0;
+          }).map((plan) => {
+            const isActive = plan.id === activePlanId;
+            return (
             <li
               key={plan.id}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+              className={`rounded-2xl border shadow-sm overflow-hidden ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-100'}`}
             >
               <div className="flex items-center">
                 <Link
                   href={`/plans/${plan.id}`}
-                  className="flex-1 px-4 py-4 hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-4 hover:bg-black/5 transition-colors"
                 >
-                  <p className="font-semibold text-gray-900">{plan.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-900">{plan.name}</p>
+                    {isActive && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500 text-white text-xs font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        active
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {new Date(plan.created_at).toLocaleDateString()}
                   </p>
@@ -101,8 +117,10 @@ export default function PlansPage() {
                     </svg>
                   </button>
                   <button
-                    onClick={() => setDeletingId(plan.id)}
-                    className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    onClick={() => !isActive && setDeletingId(plan.id)}
+                    disabled={isActive}
+                    title={isActive ? 'Finish the workout first' : 'Delete plan'}
+                    className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
                     aria-label="Delete plan"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,7 +130,7 @@ export default function PlansPage() {
                 </div>
               </div>
             </li>
-          ))}
+          );})}
         </ul>
       )}
 

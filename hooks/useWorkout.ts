@@ -9,8 +9,10 @@ import {
   getSets,
   getWorkout,
   getWorkoutHistory,
+  getExerciseHistory,
   startWorkout,
-} from '@/lib/api';
+} from '@/lib/api-router';
+import { ACTIVE_WORKOUT_KEY } from '@/components/providers/WorkoutTimerContext';
 import type { AddSetInput, Set } from '@/lib/types';
 
 export const workoutKeys = {
@@ -60,6 +62,8 @@ export function useStartWorkout() {
     mutationFn: (planId: string) => startWorkout(planId),
     onSuccess: (_data, planId) => {
       queryClient.invalidateQueries({ queryKey: workoutKeys.active(planId) });
+      // Immediately reflect in the global header timer
+      queryClient.invalidateQueries({ queryKey: ACTIVE_WORKOUT_KEY });
     },
   });
 }
@@ -109,6 +113,14 @@ export function useAddSet(workoutId: string) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workoutKeys.sets(workoutId) });
     },
+  });
+}
+
+export function useExerciseHistory(exerciseId: string, excludeWorkoutId: string) {
+  return useQuery({
+    queryKey: [...workoutKeys.all, 'exercise-history', exerciseId, excludeWorkoutId],
+    queryFn: () => getExerciseHistory(exerciseId, excludeWorkoutId),
+    enabled: !!exerciseId && !!excludeWorkoutId,
   });
 }
 

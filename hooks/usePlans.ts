@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createPlan, deletePlan, getPlans, updatePlan } from '@/lib/api';
+import { createPlan, deletePlan, getPlans, updatePlan } from '@/lib/api-router';
 import type { CreatePlanInput, Plan, UpdatePlanInput } from '@/lib/types';
 
 export const planKeys = {

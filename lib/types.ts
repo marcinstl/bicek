@@ -1,4 +1,4 @@
-export type MetricType = 'reps' | 'time';
+export type MetricType = 'reps' | 'time' | 'time_sec' | 'time_min';
 
 export interface Profile {
   id: string;
