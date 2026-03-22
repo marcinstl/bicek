@@ -1,78 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FitnessAddict – Workout Tracker
 
-## Getting Started
+Production-ready workout tracking MVP built with Next.js 16, Supabase, and TanStack Query.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS
+- **State**: TanStack Query v5 (all server state, optimistic updates)
+- **Backend**: Supabase (PostgreSQL + Auth + RLS)
+
+## Project Structure
+
+```
+├── app/
+│   ├── (auth)/login/        # Login page
+│   ├── (auth)/signup/       # Signup page
+│   ├── (app)/
+│   │   ├── layout.tsx       # Nav + auth guard
+│   │   ├── plans/           # Plans list + detail
+│   │   │   └── [planId]/
+│   │   │       ├── page.tsx         # Exercises list + start workout
+│   │   │       └── workout/
+│   │   │           ├── page.tsx     # Active workout
+│   │   │           └── summary/     # Workout summary
+│   │   └── history/         # Completed workouts
+│   └── api/auth/callback/   # Supabase auth callback
+├── lib/
+│   ├── api.ts               # All Supabase API functions
+│   ├── supabase.ts          # Browser Supabase client
+│   ├── supabase-server.ts   # Server Supabase client
+│   ├── types.ts             # TypeScript types
+│   └── utils.ts             # cn() helper
+├── hooks/
+│   ├── useAuth.ts           # Auth state
+│   ├── usePlans.ts          # Plans queries + mutations
+│   ├── useExercises.ts      # Exercises queries + mutations
+│   └── useWorkout.ts        # Workout queries + mutations
+├── components/
+│   ├── providers/QueryProvider.tsx
+│   └── ui/                  # Button, Input, Modal, etc.
+├── proxy.ts                 # Auth middleware (Next.js 16)
+└── supabase/migrations/     # SQL migrations
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Supabase Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Create project
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Go to [supabase.com](https://supabase.com) and create a new project.
 
-## Learn More
+### 2. Install Supabase CLI
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+brew install supabase/tap/supabase
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Link & push migrations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
 
-## Deploy on Vercel
+Or manually run the migration SQL in the Supabase SQL Editor:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+supabase/migrations/20240101000000_initial.sql
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Configure environment
 
----
+Copy `.env.local` and fill in your Supabase credentials:
 
-## Jak działa XP (poziomy i mnożnik)
+```bash
+cp .env.local .env.local.example  # already exists
+```
 
-### Wzór na multiplier
+Edit `.env.local`:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
 
-- **Przy streak = 0:** `mult = 1`
-- **Przy streak > 0:**
-  - `rateNorm = (dailyRate - 0.002) / (0.015 - 0.002)` (zakres 0–1)
-  - `streakNorm = 1 - 0.9^streak` (zakres 0–1)
-  - `mult = clamp(1, 5, 1 + 4 × (0.5×rateNorm + 0.5×streakNorm))`
-- Stałe: `MIN_RATE = 0.002`, `MAX_RATE = 0.015`
+Find these in: Supabase Dashboard → Settings → API
 
-### Exp do zdobycia na dzisiaj (maks.)
+## Run Locally
 
-`maxDailyXp = floor(target × baseExpPerRep(userLevel) × multiplier(dailyRate, streak))`
+```bash
+npm install
+npm run dev
+```
 
-- `target` = cel na dziś = `floor(exercise.currentTarget)`
-- `baseExpPerRep(level) = 1 + floor(level / 10)` (level z totalXp użytkownika)
-- `multiplier` = jak wyżej z `exercise.dailyRate` i `exercise.streak`
+Open [http://localhost:3000](http://localhost:3000).
 
-### Exp do następnego poziomu
+## Database Schema
 
-Krzywa leveli (styl Tibii):
+| Table      | Key columns                                                        |
+|------------|--------------------------------------------------------------------|
+| profiles   | id (→ auth.users), created_at                                      |
+| plans      | id, user_id, name, created_at                                      |
+| exercises  | id, plan_id, name, unit?, metric_type? (reps\|time), created_at    |
+| workouts   | id, user_id, plan_id, started_at, ended_at?, created_at            |
+| sets       | id, workout_id, exercise_id, value?, reps?, duration_seconds?, note? |
 
-- `totalXpForLevel(L) = 0` dla L ≤ 1, inaczej `50 × L²`
-- `level = levelFromTotalXp(totalXp)` → dla totalXp < 200 level = 1, inaczej `floor(√(totalXp / 50))`
-- **XP do następnego levelu:** `xpRemaining = totalXpForLevel(level + 1) - totalXp`
-- Równoważnie: `xpToNextLevel(level) = 50 × (2×level + 1)`
+RLS is enabled on all tables. Users can only access their own data.
 
-### Czy da się to uzyskać z archiwalnych danych?
+## Workout Summary Format
 
-| Wartość | Skąd w archiwum |
-|--------|------------------|
-| **Multiplier** | `exercise.dailyRate`, `exercise.streak` (w `exercises[]`) |
-| **Max exp na dziś** | `exercise.currentTarget`, `exercise.dailyRate`, `exercise.streak` + `user.totalXp` (level → baseExpPerRep) |
-| **Exp do next level** | Tylko `user.totalXp` (level i xpRemaining z totalXpForLevel / levelFromTotalXp) |
+```
+Date: YYYY-MM-DD
+Start: HH:MM
+End: HH:MM
+Duration: XX min
 
-Wszystkie trzy rzeczy da się policzyć z danych archiwalnych (backup/export): `user.totalXp` oraz w `exercises` pola `currentTarget`, `dailyRate`, `streak`. Nie trzeba nic dodatkowo zapisywać „pod exp” żeby te wzory działały.
+Exercise Name:
+* 100kg x 10
+* 100kg x 8 - felt heavy
 
-**Opcjonalnie zapisane:** `user.totalXp` musi być zapisane (do levelu i „XP do next level”). `dailyLog.xpEarned` nie jest potrzebne do powyższych wzorów; służy do pokazania „ile dziś zdobyte” i do cofnięcia XP przy resecie dnia. `exercise.totalXpEarned` tylko do wyświetlania „zdobyte z tego ćwiczenia”.
+Cardio:
+* 60s
+```
+
+## Deploy
+
+```bash
+vercel --prod
+```
+
+Set the same env vars in your Vercel project settings.
