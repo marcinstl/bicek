@@ -116,8 +116,7 @@ export async function createExercise(input: CreateExerciseInput): Promise<Exerci
     .insert({
       plan_id: input.plan_id,
       name: input.name,
-      unit: input.unit ?? null,
-      metric_type: input.metric_type ?? null,
+      kind: input.kind,
     })
     .select()
     .single();
@@ -131,8 +130,7 @@ export async function updateExercise(id: string, input: UpdateExerciseInput): Pr
     .from('exercises')
     .update({
       name: input.name,
-      unit: input.unit ?? null,
-      metric_type: input.metric_type ?? null,
+      kind: input.kind,
     })
     .eq('id', id)
     .select()
@@ -230,7 +228,7 @@ export async function getSets(workoutId: string): Promise<SetWithExercise[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('sets')
-    .select('*, exercises(name, unit, metric_type)')
+    .select('*, exercises(name, kind)')
     .eq('workout_id', workoutId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -247,6 +245,7 @@ export async function addSet(input: AddSetInput): Promise<Set> {
       value: input.value ?? null,
       reps: input.reps ?? null,
       duration_seconds: input.duration_seconds ?? null,
+      distance_km: input.distance_km ?? null,
       note: input.note ?? null,
     })
     .select()
@@ -296,44 +295,36 @@ export async function getExerciseHistory(
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
-function formatTime(duration_seconds: number, metric_type: string): string {
-  if (metric_type === 'time_min') {
-    const mins = Math.floor(duration_seconds / 60);
-    const secs = duration_seconds % 60;
-    return secs > 0 ? `${mins}m ${secs}s` : `${mins}min`;
-  }
-  return `${duration_seconds}s`;
-}
-
-function isTimeMetric(metric_type: string | null): boolean {
-  return metric_type === 'time' || metric_type === 'time_sec' || metric_type === 'time_min';
+function formatTime(duration_seconds: number): string {
+  const hours = Math.floor(duration_seconds / 3600);
+  const mins = Math.floor((duration_seconds % 3600) / 60);
+  const secs = duration_seconds % 60;
+  if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+  if (mins > 0) return secs > 0 ? `${mins}m ${secs}s` : `${mins}min`;
+  return `${secs}s`;
 }
 
 export function formatSetText(
-  s: Pick<Set, 'value' | 'reps' | 'duration_seconds' | 'note'>,
-  exercise: Pick<Exercise, 'unit' | 'metric_type'>
+  s: Pick<Set, 'value' | 'reps' | 'duration_seconds' | 'distance_km' | 'note'>,
+  exercise: Pick<Exercise, 'kind'>
 ): string {
   let line = '';
-  const mt = exercise.metric_type ?? '';
-
-  if (exercise.unit && s.value != null && isTimeMetric(mt) && s.duration_seconds != null) {
-    // e.g. 40km in 30min
-    line = `${s.value}${exercise.unit} in ${formatTime(s.duration_seconds, mt)}`;
-  } else if (exercise.unit && s.value != null && mt === 'reps' && s.reps != null) {
-    // e.g. 100kg x 10
-    line = `${s.value}${exercise.unit} x ${s.reps}`;
-  } else if (exercise.unit && s.value != null && s.duration_seconds != null) {
-    // unit + time but no explicit metric_type match
-    line = `${s.value}${exercise.unit} in ${formatTime(s.duration_seconds, mt)}`;
-  } else if (exercise.unit && s.value != null && s.reps != null) {
-    line = `${s.value}${exercise.unit} x ${s.reps}`;
-  } else if (exercise.unit && s.value != null) {
-    // just distance / weight alone
-    line = `${s.value}${exercise.unit}`;
-  } else if (mt === 'reps' && s.reps != null) {
+  if (exercise.kind === 'weighted_reps' && s.value != null && s.reps != null) {
+    line = `${s.value}kg x ${s.reps}`;
+  } else if (exercise.kind === 'bodyweight_reps' && s.reps != null) {
     line = `${s.reps} reps`;
-  } else if (isTimeMetric(mt) && s.duration_seconds != null) {
-    line = formatTime(s.duration_seconds, mt);
+  } else if (exercise.kind === 'time_based' && s.duration_seconds != null) {
+    line = formatTime(s.duration_seconds);
+  } else if (
+    exercise.kind === 'distance_per_time' &&
+    s.distance_km != null &&
+    s.duration_seconds != null &&
+    s.duration_seconds > 0
+  ) {
+    const speed = (s.distance_km / s.duration_seconds) * 3600;
+    line = `${s.distance_km}km in ${formatTime(s.duration_seconds)} (${speed.toFixed(1)} km/h)`;
+  } else if (exercise.kind === 'distance_per_time' && s.distance_km != null) {
+    line = `${s.distance_km}km`;
   } else {
     line = 'set';
   }

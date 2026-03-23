@@ -98,6 +98,7 @@ export function useAddSet(workoutId: string) {
           value: input.value ?? null,
           reps: input.reps ?? null,
           duration_seconds: input.duration_seconds ?? null,
+          distance_km: input.distance_km ?? null,
           note: input.note ?? null,
           created_at: new Date().toISOString(),
         },

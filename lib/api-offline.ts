@@ -65,7 +65,12 @@ export async function deletePlan(id: string): Promise<void> {
 export async function getExercises(planId: string): Promise<Exercise[]> {
   const db = await getDb();
   const all = await db.getAllFromIndex('exercises', 'by_plan', planId);
-  return all.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return all
+    .map((exercise) => ({
+      ...exercise,
+      kind: exercise.kind ?? 'bodyweight_reps',
+    }))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
 export async function createExercise(input: CreateExerciseInput): Promise<Exercise> {
@@ -74,8 +79,7 @@ export async function createExercise(input: CreateExerciseInput): Promise<Exerci
     id: randomId(),
     plan_id: input.plan_id,
     name: input.name,
-    unit: input.unit ?? null,
-    metric_type: input.metric_type ?? null,
+    kind: input.kind,
     created_at: new Date().toISOString(),
   };
   await db.put('exercises', exercise);
@@ -89,8 +93,7 @@ export async function updateExercise(id: string, input: UpdateExerciseInput): Pr
   const updated: Exercise = {
     ...existing,
     name: input.name,
-    unit: input.unit ?? null,
-    metric_type: input.metric_type ?? null,
+    kind: input.kind,
   };
   await db.put('exercises', updated);
   return updated;
@@ -179,8 +182,7 @@ export async function getSets(workoutId: string): Promise<SetWithExercise[]> {
       ...s,
       exercises: {
         name: exercise?.name ?? 'Unknown',
-        unit: exercise?.unit ?? null,
-        metric_type: exercise?.metric_type ?? null,
+        kind: exercise?.kind ?? 'bodyweight_reps',
       },
     });
   }
@@ -196,6 +198,7 @@ export async function addSet(input: AddSetInput): Promise<Set> {
     value: input.value ?? null,
     reps: input.reps ?? null,
     duration_seconds: input.duration_seconds ?? null,
+    distance_km: input.distance_km ?? null,
     note: input.note ?? null,
     created_at: new Date().toISOString(),
   };

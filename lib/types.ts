@@ -1,4 +1,4 @@
-export type MetricType = 'reps' | 'time' | 'time_sec' | 'time_min';
+export type ExerciseKind = 'weighted_reps' | 'bodyweight_reps' | 'time_based' | 'distance_per_time';
 
 export interface Profile {
   id: string;
@@ -16,8 +16,10 @@ export interface Exercise {
   id: string;
   plan_id: string;
   name: string;
-  unit: string | null;
-  metric_type: MetricType | null;
+  kind: ExerciseKind;
+  // legacy fields kept for older rows/offline data during migration
+  unit?: string | null;
+  metric_type?: 'reps' | 'time' | 'time_sec' | 'time_min' | null;
   created_at: string;
 }
 
@@ -41,12 +43,13 @@ export interface Set {
   value: number | null;
   reps: number | null;
   duration_seconds: number | null;
+  distance_km: number | null;
   note: string | null;
   created_at: string;
 }
 
 export interface SetWithExercise extends Set {
-  exercises: Pick<Exercise, 'name' | 'unit' | 'metric_type'>;
+  exercises: Pick<Exercise, 'name' | 'kind'>;
 }
 
 // Form types
@@ -61,14 +64,12 @@ export interface UpdatePlanInput {
 export interface CreateExerciseInput {
   plan_id: string;
   name: string;
-  unit?: string | null;
-  metric_type?: MetricType | null;
+  kind: ExerciseKind;
 }
 
 export interface UpdateExerciseInput {
   name: string;
-  unit?: string | null;
-  metric_type?: MetricType | null;
+  kind: ExerciseKind;
 }
 
 export interface AddSetInput {
@@ -77,5 +78,6 @@ export interface AddSetInput {
   value?: number | null;
   reps?: number | null;
   duration_seconds?: number | null;
+  distance_km?: number | null;
   note?: string | null;
 }

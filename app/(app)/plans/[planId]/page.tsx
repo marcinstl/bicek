@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageSpinner } from '@/components/ui/Spinner';
-import type { Exercise, MetricType } from '@/lib/types';
+import type { Exercise, ExerciseKind } from '@/lib/types';
 
 interface Props {
   params: Promise<{ planId: string }>;
@@ -39,13 +39,12 @@ export default function PlanDetailPage({ params }: Props) {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const emptyForm = { name: '', unit: '', metric_type: '' as MetricType | '' };
+  const emptyForm = { name: '', kind: 'weighted_reps' as ExerciseKind };
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
 
   function validateForm(f: typeof form) {
     if (!f.name.trim()) return 'Name is required';
-    if (!f.unit.trim() && !f.metric_type) return 'At least one of unit or metric type is required';
     return '';
   }
 
@@ -56,8 +55,7 @@ export default function PlanDetailPage({ params }: Props) {
     await createExercise.mutateAsync({
       plan_id: planId,
       name: form.name.trim(),
-      unit: form.unit.trim() || null,
-      metric_type: form.metric_type || null,
+      kind: form.kind,
     });
     setForm(emptyForm);
     setFormError('');
@@ -73,8 +71,7 @@ export default function PlanDetailPage({ params }: Props) {
       id: editingExercise.id,
       input: {
         name: form.name.trim(),
-        unit: form.unit.trim() || null,
-        metric_type: form.metric_type || null,
+        kind: form.kind,
       },
     });
     setEditingExercise(null);
@@ -95,12 +92,21 @@ export default function PlanDetailPage({ params }: Props) {
     router.push(`/plans/${planId}/workout?workoutId=${workout.id}`);
   }
 
+  function toExerciseKind(ex: Exercise): ExerciseKind {
+    if (ex.kind) return ex.kind;
+    if (ex.metric_type === 'reps' && ex.unit) return 'weighted_reps';
+    if (ex.metric_type === 'reps') return 'bodyweight_reps';
+    if (ex.metric_type === 'time' || ex.metric_type === 'time_sec' || ex.metric_type === 'time_min') {
+      return 'time_based';
+    }
+    return 'bodyweight_reps';
+  }
+
   function openEdit(ex: Exercise) {
     setEditingExercise(ex);
     setForm({
       name: ex.name,
-      unit: ex.unit ?? '',
-      metric_type: ex.metric_type ?? '',
+      kind: toExerciseKind(ex),
     });
     setFormError('');
   }
@@ -180,16 +186,9 @@ export default function PlanDetailPage({ params }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 truncate">{ex.name}</p>
                 <div className="flex gap-2 mt-1 flex-wrap">
-                  {ex.unit && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
-                      {ex.unit}
-                    </span>
-                  )}
-                  {ex.metric_type && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-purple-700 text-xs font-medium capitalize">
-                      {ex.metric_type}
-                    </span>
-                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium">
+                    {getKindLabel(toExerciseKind(ex))}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -257,17 +256,45 @@ export default function PlanDetailPage({ params }: Props) {
 
 // ─── Exercise form component ─────────────────────────────────────────────────
 
-const UNIT_PRESETS = ['kg', 'km'] as const;
-const METRIC_OPTIONS: { value: MetricType | ''; label: string }[] = [
-  { value: '', label: 'None' },
-  { value: 'reps', label: 'Reps' },
-  { value: 'time_sec', label: 'Time (sec)' },
-  { value: 'time_min', label: 'Time (min)' },
+const EXERCISE_KIND_OPTIONS: Array<{
+  value: ExerciseKind;
+  title: string;
+  subtitle: string;
+  examples: string;
+}> = [
+  {
+    value: 'weighted_reps',
+    title: 'Weighted reps',
+    subtitle: 'kg × reps',
+    examples: 'sztanga, hantle, maszyny',
+  },
+  {
+    value: 'bodyweight_reps',
+    title: 'Bodyweight reps',
+    subtitle: 'reps',
+    examples: 'pompki, podciągania, dipsy',
+  },
+  {
+    value: 'time_based',
+    title: 'Time-based',
+    subtitle: 'Time passed',
+    examples: 'plank, wall sit, hollow body',
+  },
+  {
+    value: 'distance_per_time',
+    title: 'Distance per time',
+    subtitle: 'distance + time',
+    examples: 'running, bicycle',
+  },
 ];
 
+function getKindLabel(kind: ExerciseKind): string {
+  return EXERCISE_KIND_OPTIONS.find((o) => o.value === kind)?.title ?? kind;
+}
+
 interface ExerciseFormProps {
-  form: { name: string; unit: string; metric_type: MetricType | '' };
-  setForm: React.Dispatch<React.SetStateAction<{ name: string; unit: string; metric_type: MetricType | '' }>>;
+  form: { name: string; kind: ExerciseKind };
+  setForm: React.Dispatch<React.SetStateAction<{ name: string; kind: ExerciseKind }>>;
   error: string;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
@@ -286,61 +313,27 @@ function ExerciseForm({ form, setForm, error, onSubmit, onCancel, loading, submi
         autoFocus
       />
 
-      {/* Unit pills */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-gray-700">Unit (optional)</label>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setForm((f) => ({ ...f, unit: '' }))}
-            className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
-              form.unit === ''
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
-            }`}
-          >
-            None
-          </button>
-          {UNIT_PRESETS.map((u) => (
+        <label className="text-sm font-medium text-gray-700">Set type</label>
+        <div className="grid grid-cols-1 gap-2">
+          {EXERCISE_KIND_OPTIONS.map((option) => (
             <button
-              key={u}
+              key={option.value}
               type="button"
-              onClick={() => setForm((f) => ({ ...f, unit: f.unit === u ? '' : u }))}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all ${
-                form.unit === u
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
+              onClick={() => setForm((f) => ({ ...f, kind: option.value }))}
+              className={`text-left p-3 rounded-xl border transition-all ${
+                form.kind === option.value
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400'
               }`}
             >
-              {u}
-            </button>
-          ))}
-          <input
-            type="text"
-            placeholder="custom…"
-            value={UNIT_PRESETS.includes(form.unit as typeof UNIT_PRESETS[number]) || form.unit === '' ? '' : form.unit}
-            onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-            className="flex-1 min-w-[80px] rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-          />
-        </div>
-      </div>
-
-      {/* Metric type pills */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-gray-700">Metric type (optional)</label>
-        <div className="grid grid-cols-2 gap-2">
-          {METRIC_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, metric_type: value }))}
-              className={`py-2 rounded-xl text-sm font-medium border transition-all ${
-                form.metric_type === value
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
-              }`}
-            >
-              {label}
+              <p className="text-sm font-semibold">{option.title}</p>
+              <p className={`text-xs ${form.kind === option.value ? 'text-emerald-100' : 'text-gray-500'}`}>
+                {option.subtitle}
+              </p>
+              <p className={`text-xs mt-0.5 ${form.kind === option.value ? 'text-emerald-100' : 'text-gray-500'}`}>
+                {option.examples}
+              </p>
             </button>
           ))}
         </div>

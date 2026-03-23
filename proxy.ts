@@ -32,6 +32,7 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          // RequestCookies only accepts name+value; path/secure/etc go on the response.
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -66,7 +67,7 @@ export async function proxy(request: NextRequest) {
       .from('profiles')
       .select('is_active')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile?.is_active) {
       const url = request.nextUrl.clone();
@@ -81,7 +82,7 @@ export async function proxy(request: NextRequest) {
       .from('profiles')
       .select('is_active')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profile?.is_active) {
       const url = request.nextUrl.clone();

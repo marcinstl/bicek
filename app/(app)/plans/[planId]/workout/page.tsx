@@ -9,10 +9,25 @@ import { useWorkoutTimer, formatDuration } from '@/components/providers/WorkoutT
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PageSpinner } from '@/components/ui/Spinner';
-import type { SetWithExercise } from '@/lib/types';
+import type { ExerciseKind, SetWithExercise } from '@/lib/types';
 
 interface Props {
   params: Promise<{ planId: string }>;
+}
+
+function getKindLabel(kind: ExerciseKind): string {
+  switch (kind) {
+    case 'weighted_reps':
+      return 'Weighted reps';
+    case 'bodyweight_reps':
+      return 'Bodyweight reps';
+    case 'time_based':
+      return 'Time-based';
+    case 'distance_per_time':
+      return 'Distance per time';
+    default:
+      return kind;
+  }
 }
 
 export default function WorkoutPage({ params }: Props) {
@@ -90,7 +105,7 @@ export default function WorkoutPage({ params }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 truncate">{ex.name}</p>
                     <p className="text-xs text-gray-400">
-                      {[ex.unit, ex.metric_type].filter(Boolean).join(' · ')}
+                      {getKindLabel(ex.kind)}
                     </p>
                   </div>
                   <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

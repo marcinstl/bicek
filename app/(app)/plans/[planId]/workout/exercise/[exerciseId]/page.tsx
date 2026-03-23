@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { formatSetText } from '@/lib/api-router';
+import type { ExerciseKind } from '@/lib/types';
 
 interface Props {
   params: Promise<{ planId: string; exerciseId: string }>;
@@ -30,8 +31,9 @@ export default function ExercisePage({ params }: Props) {
   const currentSets = allSets.filter((s) => s.exercise_id === exerciseId);
 
   const [value, setValue] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
   const [reps, setReps] = useState('');
-  const [duration, setDuration] = useState('');
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
@@ -39,35 +41,32 @@ export default function ExercisePage({ params }: Props) {
     e.preventDefault();
     setError('');
 
-    const hasValue = exercise?.unit && value.trim();
-    const hasReps = exercise?.metric_type === 'reps' && reps.trim();
-    const isTimeSec = exercise?.metric_type === 'time' || exercise?.metric_type === 'time_sec';
-    const isTimeMin = exercise?.metric_type === 'time_min';
-    const hasTime = (isTimeSec || isTimeMin) && duration.trim();
+    const kind = toExerciseKind(exercise);
+    const hasWeighted = kind === 'weighted_reps' && value.trim() && reps.trim();
+    const hasBodyweight = kind === 'bodyweight_reps' && reps.trim();
+    const hasTime = kind === 'time_based' && durationSeconds && durationSeconds > 0;
+    const hasDistancePerTime =
+      kind === 'distance_per_time' && distanceKm.trim() && durationSeconds && durationSeconds > 0;
 
-    if (!hasValue && !hasReps && !hasTime) {
-      setError('Enter at least one value');
+    if (!hasWeighted && !hasBodyweight && !hasTime && !hasDistancePerTime) {
+      setError('Complete required fields for this set type');
       return;
     }
-
-    const durationSeconds = hasTime
-      ? isTimeMin
-        ? Math.round(parseFloat(duration) * 60)
-        : parseInt(duration)
-      : null;
 
     await addSet.mutateAsync({
       workout_id: workoutId,
       exercise_id: exerciseId,
-      value: hasValue ? parseFloat(value) : null,
-      reps: hasReps ? parseInt(reps) : null,
-      duration_seconds: durationSeconds,
+      value: hasWeighted ? parseFloat(value) : null,
+      reps: hasWeighted || hasBodyweight ? parseInt(reps) : null,
+      distance_km: hasDistancePerTime ? parseFloat(distanceKm) : null,
+      duration_seconds: hasTime || hasDistancePerTime ? durationSeconds : null,
       note: note.trim() || null,
     });
 
     setValue('');
+    setDistanceKm('');
     setReps('');
-    setDuration('');
+    setDurationSeconds(null);
     setNote('');
   }
 
@@ -75,6 +74,34 @@ export default function ExercisePage({ params }: Props) {
   if (!exercise) {
     router.back();
     return null;
+  }
+
+  function toExerciseKind(input?: { kind?: ExerciseKind; metric_type?: string | null; unit?: string | null }): ExerciseKind {
+    if (!input) return 'bodyweight_reps';
+    if (input.kind) return input.kind;
+    if (input.metric_type === 'reps' && input.unit) return 'weighted_reps';
+    if (input.metric_type === 'reps') return 'bodyweight_reps';
+    if (input.metric_type === 'time' || input.metric_type === 'time_sec' || input.metric_type === 'time_min') {
+      return 'time_based';
+    }
+    return 'bodyweight_reps';
+  }
+
+  const exerciseKind = toExerciseKind(exercise);
+
+  function getKindLabel(kind: ExerciseKind): string {
+    switch (kind) {
+      case 'weighted_reps':
+        return 'Weighted reps';
+      case 'bodyweight_reps':
+        return 'Bodyweight reps';
+      case 'time_based':
+        return 'Time-based';
+      case 'distance_per_time':
+        return 'Distance per time';
+      default:
+        return kind;
+    }
   }
 
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -98,16 +125,9 @@ export default function ExercisePage({ params }: Props) {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 truncate">{exercise.name}</h1>
           <div className="flex gap-2 mt-0.5">
-            {exercise.unit && (
-              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg font-medium">
-                {exercise.unit}
-              </span>
-            )}
-            {exercise.metric_type && (
-              <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg font-medium capitalize">
-                {exercise.metric_type}
-              </span>
-            )}
+            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg font-medium">
+              {getKindLabel(exerciseKind)}
+            </span>
           </div>
         </div>
       </div>
@@ -122,9 +142,9 @@ export default function ExercisePage({ params }: Props) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-3">
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              {exercise.unit && (
+              {exerciseKind === 'weighted_reps' && (
                 <Input
-                  label={`Value (${exercise.unit})`}
+                  label="Weight (kg)"
                   type="number"
                   inputMode="decimal"
                   step="any"
@@ -133,7 +153,7 @@ export default function ExercisePage({ params }: Props) {
                   onChange={(e) => setValue(e.target.value)}
                 />
               )}
-              {exercise.metric_type === 'reps' && (
+              {(exerciseKind === 'weighted_reps' || exerciseKind === 'bodyweight_reps') && (
                 <Input
                   label="Reps"
                   type="number"
@@ -143,25 +163,22 @@ export default function ExercisePage({ params }: Props) {
                   onChange={(e) => setReps(e.target.value)}
                 />
               )}
-              {(exercise.metric_type === 'time' || exercise.metric_type === 'time_sec') && (
+              {exerciseKind === 'distance_per_time' && (
                 <Input
-                  label="Duration (sec)"
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="60"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                />
-              )}
-              {exercise.metric_type === 'time_min' && (
-                <Input
-                  label="Duration (min)"
+                  label="Distance (km)"
                   type="number"
                   inputMode="decimal"
                   step="any"
-                  placeholder="5"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
+                  placeholder="1.5"
+                  value={distanceKm}
+                  onChange={(e) => setDistanceKm(e.target.value)}
+                />
+              )}
+              {(exerciseKind === 'time_based' || exerciseKind === 'distance_per_time') && (
+                <DurationKeypadInput
+                  label="Time"
+                  seconds={durationSeconds}
+                  onChangeSeconds={setDurationSeconds}
                 />
               )}
             </div>
@@ -239,4 +256,117 @@ export default function ExercisePage({ params }: Props) {
       )}
     </div>
   );
+}
+
+function DurationKeypadInput({
+  label,
+  seconds,
+  onChangeSeconds,
+}: {
+  label: string;
+  seconds: number | null;
+  onChangeSeconds: (value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rawDigits, setRawDigits] = useState(() => secondsToRawDigits(seconds ?? 0));
+
+  function openPicker() {
+    setRawDigits(secondsToRawDigits(seconds ?? 0));
+    setOpen(true);
+  }
+
+  function pushDigit(digit: string) {
+    setRawDigits((prev) => `${prev}${digit}`.replace(/\D/g, '').slice(-6));
+  }
+
+  function backspace() {
+    setRawDigits((prev) => prev.slice(0, -1));
+  }
+
+  function save() {
+    onChangeSeconds(rawDigitsToSeconds(rawDigits));
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <button
+          type="button"
+          onClick={openPicker}
+          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-left text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+        >
+          {formatHHMMSS(seconds ?? 0)}
+        </button>
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <p className="text-sm font-medium text-gray-500 mb-2">{label}</p>
+            <p className="text-4xl font-semibold tracking-wider text-center text-gray-900 mb-4">
+              {formatHHMMSS(rawDigitsToSeconds(rawDigits))}
+            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((digit) => (
+                <button
+                  key={digit}
+                  type="button"
+                  onClick={() => pushDigit(digit)}
+                  className={digit === '0'
+                    ? 'col-start-2 rounded-xl border border-gray-300 py-3 text-lg font-semibold text-gray-800 hover:border-emerald-400 transition-colors'
+                    : 'rounded-xl border border-gray-300 py-3 text-lg font-semibold text-gray-800 hover:border-emerald-400 transition-colors'}
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={backspace}
+                className="rounded-xl border border-gray-300 py-3 text-lg font-semibold text-gray-800 hover:border-emerald-400 transition-colors"
+              >
+                ⌫
+              </button>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" className="flex-1" onClick={save}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function secondsToRawDigits(totalSeconds: number): string {
+  const safe = Number.isFinite(totalSeconds) && totalSeconds > 0 ? Math.floor(totalSeconds) : 0;
+  const hh = Math.floor(safe / 3600);
+  const mm = Math.floor((safe % 3600) / 60);
+  const ss = safe % 60;
+  return `${String(hh).padStart(2, '0')}${String(mm).padStart(2, '0')}${String(ss).padStart(2, '0')}`.replace(/^0+/, '');
+}
+
+function rawDigitsToSeconds(rawDigits: string): number {
+  const padded = rawDigits.replace(/\D/g, '').slice(-6).padStart(6, '0');
+  const hh = parseInt(padded.slice(0, 2), 10);
+  const mm = parseInt(padded.slice(2, 4), 10);
+  const ss = parseInt(padded.slice(4, 6), 10);
+  return hh * 3600 + mm * 60 + ss;
+}
+
+function formatHHMMSS(totalSeconds: number): string {
+  const safe = Number.isFinite(totalSeconds) && totalSeconds > 0 ? Math.floor(totalSeconds) : 0;
+  const hh = Math.floor(safe / 3600);
+  const mm = Math.floor((safe % 3600) / 60);
+  const ss = safe % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }

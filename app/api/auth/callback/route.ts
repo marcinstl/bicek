@@ -9,6 +9,18 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createServerSupabaseClient();
     await supabase.auth.exchangeCodeForSession(code);
+
+    // Fallback for OAuth users in case DB trigger didn't create profile row.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      await supabase.from('profiles').upsert(
+        { id: user.id },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    }
   }
 
   return NextResponse.redirect(`${origin}${next}`);
