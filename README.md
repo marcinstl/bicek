@@ -1,6 +1,6 @@
-# FitnessAddict – Workout Tracker
+# Bicek – Workout Tracker
 
-Production-ready workout tracking MVP built with Next.js 16, Supabase, and TanStack Query.
+Personal workout tracking MVP built with Next.js 16, Supabase, and TanStack Query.
 
 ## Tech Stack
 
@@ -73,7 +73,7 @@ supabase/migrations/20240101000000_initial.sql
 Copy `.env.local` and fill in your Supabase credentials:
 
 ```bash
-cp .env.local .env.local.example  # already exists
+cp .env.local .env.example
 ```
 
 Edit `.env.local`:
@@ -104,22 +104,6 @@ Open [http://localhost:3000](http://localhost:3000).
 | sets       | id, workout_id, exercise_id, value?, reps?, duration_seconds?, note? |
 
 RLS is enabled on all tables. Users can only access their own data.
-
-## Workout Summary Format
-
-```
-Date: YYYY-MM-DD
-Start: HH:MM
-End: HH:MM
-Duration: XX min
-
-Exercise Name:
-* 100kg x 10
-* 100kg x 8 - felt heavy
-
-Cardio:
-* 60s
-```
 
 ## Deploy
 
