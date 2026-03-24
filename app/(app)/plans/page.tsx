@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from '@/hooks/usePlans';
+import { useWorkoutHistory } from '@/hooks/useWorkout';
 import { useWorkoutTimer } from '@/components/providers/WorkoutTimerContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,7 +14,9 @@ import { PageSpinner } from '@/components/ui/Spinner';
 import type { Plan } from '@/lib/types';
 
 export default function PlansPage() {
+  const router = useRouter();
   const { data: plans, isLoading, error } = usePlans();
+  const { data: workoutHistory = [] } = useWorkoutHistory();
   const { activePlanId } = useWorkoutTimer();
   const createPlan = useCreatePlan();
   const updatePlan = useUpdatePlan();
@@ -23,6 +27,13 @@ export default function PlansPage() {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [editName, setEditName] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openingPlanId, setOpeningPlanId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -45,8 +56,38 @@ export default function PlansPage() {
     setDeletingId(null);
   }
 
+  function getLatestWorkoutTimeByPlan() {
+    const latestByPlan = new Map<string, number>();
+    for (const workout of workoutHistory) {
+      if (!workout.ended_at) continue;
+      const ts = new Date(workout.ended_at).getTime();
+      const prev = latestByPlan.get(workout.plan_id);
+      if (prev == null || ts > prev) latestByPlan.set(workout.plan_id, ts);
+    }
+    return latestByPlan;
+  }
+
+  function formatRelativeTime(dateMs: number): string {
+    const diffMs = nowMs - dateMs;
+    const minutes = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const months = Math.floor(days / 30);
+    const years = Math.floor(days / 365);
+    const locale = typeof navigator !== 'undefined' ? navigator.language : 'en';
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+
+    if (minutes < 1) return rtf.format(0, 'second');
+    if (minutes < 60) return rtf.format(-minutes, 'minute');
+    if (hours < 24) return rtf.format(-hours, 'hour');
+    if (days < 30) return rtf.format(-days, 'day');
+    if (months < 12) return rtf.format(-months, 'month');
+    return rtf.format(-years, 'year');
+  }
+
   if (isLoading) return <PageSpinner />;
   if (error) return <div className="text-red-600 text-sm p-4">Failed to load plans</div>;
+  const latestWorkoutByPlan = getLatestWorkoutTimeByPlan();
 
   return (
     <div>
@@ -78,11 +119,23 @@ export default function PlansPage() {
       ) : (
         <ul className="flex flex-col gap-3">
           {[...(plans ?? [])].sort((a, b) => {
+            const aLast = latestWorkoutByPlan.get(a.id);
+            const bLast = latestWorkoutByPlan.get(b.id);
+
+            // Plans without workouts come first.
+            if (aLast == null && bLast != null) return -1;
+            if (aLast != null && bLast == null) return 1;
+
+            // Plans with a known last workout are sorted oldest -> newest.
+            if (aLast != null && bLast != null) return aLast - bLast;
+
+            // Keep deterministic order for plans without workouts.
             if (a.id === activePlanId) return -1;
             if (b.id === activePlanId) return 1;
-            return 0;
+            return a.created_at.localeCompare(b.created_at);
           }).map((plan) => {
             const isActive = plan.id === activePlanId;
+            const lastWorkoutTs = latestWorkoutByPlan.get(plan.id);
             return (
             <li
               key={plan.id}
@@ -91,10 +144,21 @@ export default function PlansPage() {
               <div className="flex items-center">
                 <Link
                   href={`/plans/${plan.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (openingPlanId === plan.id) return;
+                    setOpeningPlanId(plan.id);
+                    router.push(`/plans/${plan.id}`);
+                  }}
                   className="flex-1 px-4 py-4 hover:bg-black/5 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">{plan.name}</p>
+                    {openingPlanId === plan.id && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium">
+                        opening...
+                      </span>
+                    )}
                     {isActive && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500 text-white text-xs font-medium">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -103,7 +167,7 @@ export default function PlansPage() {
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(plan.created_at).toLocaleDateString()}
+                    Last workout: {lastWorkoutTs ? formatRelativeTime(lastWorkoutTs) : 'never'}
                   </p>
                 </Link>
                 <div className="flex items-center gap-1 pr-3">

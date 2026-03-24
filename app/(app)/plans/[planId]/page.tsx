@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PageSpinner } from '@/components/ui/Spinner';
 import type { Exercise, ExerciseKind } from '@/lib/types';
 
 interface Props {
@@ -111,8 +110,6 @@ export default function PlanDetailPage({ params }: Props) {
     setFormError('');
   }
 
-  if (isLoading) return <PageSpinner />;
-
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
@@ -164,7 +161,25 @@ export default function PlanDetailPage({ params }: Props) {
         )}
       </div>
 
-      {exercises?.length === 0 ? (
+      {isLoading ? (
+        <ul className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <li
+              key={`exercise-skeleton-${idx}`}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3 animate-pulse"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="h-4 w-40 rounded bg-gray-200 mb-2" />
+                <div className="h-5 w-28 rounded bg-gray-100" />
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-8 w-8 rounded-xl bg-gray-100" />
+                <div className="h-8 w-8 rounded-xl bg-gray-100" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : exercises?.length === 0 ? (
         <EmptyState
           icon={
             <svg className="w-14 h-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
