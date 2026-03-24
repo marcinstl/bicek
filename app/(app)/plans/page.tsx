@@ -145,23 +145,29 @@ export default function PlansPage() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="stagger-cards flex flex-col gap-3">
           {sortedPlans.map((plan) => {
             const isActive = plan.id === activePlanId;
             const lastWorkoutTs = latestWorkoutByPlan.get(plan.id);
             return (
             <li
               key={plan.id}
-              className={`rounded-2xl border shadow-sm overflow-hidden ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-100'}`}
+              className={
+                isActive
+                  ? 'rounded-2xl p-px bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25 overflow-hidden'
+                  : 'rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm overflow-hidden transition-shadow duration-300 hover:shadow-md hover:shadow-black/[0.06]'
+              }
             >
-              <div className="flex items-center">
+              <div
+                className={`flex items-center overflow-hidden ${isActive ? 'rounded-[15px] bg-emerald-50/95' : 'bg-white/95'}`}
+              >
                 <Link
                   href={`/plans/${plan.id}`}
                   prefetch
                   onMouseEnter={() => router.prefetch(`/plans/${plan.id}`)}
                   onTouchStart={() => router.prefetch(`/plans/${plan.id}`)}
                   onClick={() => setOpeningPlanId(plan.id)}
-                  className="flex-1 px-4 py-4 hover:bg-black/5 transition-colors"
+                  className="flex-1 px-4 py-4 hover:bg-black/[0.04] transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">{plan.name}</p>

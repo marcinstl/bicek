@@ -51,8 +51,9 @@ function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white/75 backdrop-blur-md border-b border-gray-200/50 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gray-300/50 to-transparent" />
+      <div className="relative max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/plans" className="flex items-center font-black tracking-tight text-gray-900 text-xl">
             BICEK<span className="text-emerald-500">.</span>
@@ -95,7 +96,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <WorkoutTimerProvider>
-      <div className="min-h-screen flex flex-col">
+      <div className="relative z-10 min-h-screen flex flex-col">
         <AppHeader />
 
         {/* Main */}
@@ -104,7 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
 
         {/* Bottom nav */}
-        <nav className="sticky bottom-0 bg-white border-t border-gray-100 safe-bottom">
+        <nav className="sticky bottom-0 z-40 bg-white/80 backdrop-blur-md border-t border-gray-200/60 shadow-[0_-8px_32px_-12px_rgba(15,23,42,0.06)] safe-bottom">
           <div className="max-w-2xl mx-auto flex">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + '/');

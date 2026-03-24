@@ -38,16 +38,29 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-emerald-50 via-white to-emerald-50">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
+      <div
+        className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-emerald-400/25 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 translate-x-1/4 translate-y-1/4 rounded-full bg-teal-500/20 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute top-1/3 -left-24 h-56 w-56 rounded-full bg-emerald-300/15 blur-2xl"
+        aria-hidden
+      />
+
+      <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-black tracking-tight text-gray-900 mb-1">
             BICEK<span className="text-emerald-500">.</span>
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
+          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="rounded-2xl border border-white/70 bg-white/75 p-6 shadow-xl shadow-emerald-900/10 backdrop-blur-xl">
           <GoogleButton label="Sign in with Google" />
 
           <div className="flex items-center gap-3 my-4">

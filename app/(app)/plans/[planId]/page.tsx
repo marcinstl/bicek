@@ -132,7 +132,7 @@ export default function PlanDetailPage({ params }: Props) {
         {activeWorkout ? (
           <button
             onClick={handleStartWorkout}
-            className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold rounded-2xl py-4 flex items-center justify-center gap-2 transition-colors shadow-sm"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl py-4 flex items-center justify-center gap-2 transition-all duration-200 shadow-md shadow-emerald-600/30 hover:shadow-lg hover:shadow-emerald-600/40 active:scale-[0.99]"
           >
             <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
             Resume workout
@@ -195,9 +195,12 @@ export default function PlanDetailPage({ params }: Props) {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="stagger-cards flex flex-col gap-2">
           {exercises?.map((ex) => (
-            <li key={ex.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 flex items-center gap-3">
+            <li
+              key={ex.id}
+              className="rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm px-4 py-3 flex items-center gap-3 transition-all duration-300 hover:shadow-md hover:shadow-black/[0.06]"
+            >
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 truncate">{ex.name}</p>
                 <div className="flex gap-2 mt-1 flex-wrap">
