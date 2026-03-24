@@ -85,8 +85,6 @@ export default function PlansPage() {
     return rtf.format(-years, 'year');
   }
 
-  if (isLoading) return <PageSpinner />;
-  if (error) return <div className="text-red-600 text-sm p-4">Failed to load plans</div>;
   const latestWorkoutByPlan = getLatestWorkoutTimeByPlan();
   const sortedPlans = useMemo(
     () =>
@@ -115,6 +113,9 @@ export default function PlansPage() {
       router.prefetch(`/plans/${plan.id}`);
     }
   }, [router, sortedPlans]);
+
+  if (isLoading) return <PageSpinner />;
+  if (error) return <div className="text-red-600 text-sm p-4">Failed to load plans</div>;
 
   return (
     <div>

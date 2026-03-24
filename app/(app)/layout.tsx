@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from '@/lib/api';
@@ -30,8 +31,14 @@ const navItems = [
 
 function AppHeader() {
   const router = useRouter();
-  const offline = isOfflineMode();
+  const [isClient, setIsClient] = useState(false);
+  const [offline, setOffline] = useState(false);
   const { activeWorkoutId, activePlanId, elapsed } = useWorkoutTimer();
+
+  useEffect(() => {
+    setIsClient(true);
+    setOffline(isOfflineMode());
+  }, []);
 
   async function handleSignOut() {
     if (offline) {
@@ -65,7 +72,7 @@ function AppHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          {offline && (
+          {isClient && offline && (
             <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs font-mono text-amber-700">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               offline

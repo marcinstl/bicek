@@ -8,6 +8,7 @@ import { useExercises } from '@/hooks/useExercises';
 import { Button } from '@/components/ui/Button';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { generateWorkoutSummary, formatSetText } from '@/lib/api-router';
+import type { Exercise, SetWithExercise } from '@/lib/types';
 
 interface Props {
   params: Promise<{ planId: string }>;
@@ -37,6 +38,10 @@ export default function WorkoutSummaryPage({ params }: Props) {
   async function copyToClipboard() {
     await navigator.clipboard.writeText(summary);
   }
+
+  const loggedExercises = exercises.filter((ex) => sets.some((s) => s.exercise_id === ex.id));
+
+  const totals = getKindTotals(loggedExercises, sets as SetWithExercise[]);
 
   return (
     <div>
@@ -70,11 +75,31 @@ export default function WorkoutSummaryPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Kind totals */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">Weighted reps</p>
+          <p className="text-sm font-semibold text-gray-900">{totals.weightedVolumeKg.toFixed(0)} kg total volume</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">Distance per time</p>
+          <p className="text-sm font-semibold text-gray-900">
+            {totals.distanceKm.toFixed(2)} km • {formatDuration(totals.distanceSeconds)} • {totals.avgSpeedKmh.toFixed(1)} km/h avg
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">Time-based</p>
+          <p className="text-sm font-semibold text-gray-900">{formatDuration(totals.timeBasedSeconds)} total</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p className="text-xs uppercase tracking-wider text-gray-400 mb-1">Bodyweight reps</p>
+          <p className="text-sm font-semibold text-gray-900">{totals.bodyweightReps} total reps</p>
+        </div>
+      </div>
+
       {/* Exercise breakdown */}
       <div className="flex flex-col gap-4 mb-6">
-        {exercises
-          .filter((ex) => sets.some((s) => s.exercise_id === ex.id))
-          .map((ex) => {
+        {loggedExercises.map((ex) => {
             const exSets = sets.filter((s) => s.exercise_id === ex.id);
             return (
               <div key={ex.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -87,6 +112,9 @@ export default function WorkoutSummaryPage({ params }: Props) {
                     </li>
                   ))}
                 </ul>
+                <p className="mt-3 text-xs font-semibold text-emerald-700">
+                  {getExerciseTotalLine(ex, exSets as SetWithExercise[])}
+                </p>
               </div>
             );
           })}
@@ -119,4 +147,73 @@ export default function WorkoutSummaryPage({ params }: Props) {
       </div>
     </div>
   );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function getExerciseTotalLine(exercise: Exercise, exerciseSets: SetWithExercise[]): string {
+  if (exercise.kind === 'weighted_reps') {
+    const totalVolumeKg = exerciseSets.reduce((sum, s) => {
+      if (s.value == null || s.reps == null) return sum;
+      return sum + s.value * s.reps;
+    }, 0);
+    return `Total volume: ${totalVolumeKg.toFixed(0)} kg`;
+  }
+
+  if (exercise.kind === 'distance_per_time') {
+    const totalDistanceKm = exerciseSets.reduce((sum, s) => sum + (s.distance_km ?? 0), 0);
+    const totalSeconds = exerciseSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    const avgSpeed = totalSeconds > 0 ? (totalDistanceKm / totalSeconds) * 3600 : 0;
+    return `Total distance: ${totalDistanceKm.toFixed(2)} km • Total time: ${formatDuration(totalSeconds)} • Avg speed: ${avgSpeed.toFixed(1)} km/h`;
+  }
+
+  if (exercise.kind === 'time_based') {
+    const totalSeconds = exerciseSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    return `Total time: ${formatDuration(totalSeconds)}`;
+  }
+
+  const totalReps = exerciseSets.reduce((sum, s) => sum + (s.reps ?? 0), 0);
+  return `Total reps: ${totalReps}`;
+}
+
+function getKindTotals(exercises: Exercise[], allSets: SetWithExercise[]) {
+  let weightedVolumeKg = 0;
+  let distanceKm = 0;
+  let distanceSeconds = 0;
+  let timeBasedSeconds = 0;
+  let bodyweightReps = 0;
+
+  for (const exercise of exercises) {
+    const exSets = allSets.filter((s) => s.exercise_id === exercise.id);
+    if (exercise.kind === 'weighted_reps') {
+      weightedVolumeKg += exSets.reduce((sum, s) => {
+        if (s.value == null || s.reps == null) return sum;
+        return sum + s.value * s.reps;
+      }, 0);
+    } else if (exercise.kind === 'distance_per_time') {
+      distanceKm += exSets.reduce((sum, s) => sum + (s.distance_km ?? 0), 0);
+      distanceSeconds += exSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    } else if (exercise.kind === 'time_based') {
+      timeBasedSeconds += exSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    } else if (exercise.kind === 'bodyweight_reps') {
+      bodyweightReps += exSets.reduce((sum, s) => sum + (s.reps ?? 0), 0);
+    }
+  }
+
+  return {
+    weightedVolumeKg,
+    distanceKm,
+    distanceSeconds,
+    avgSpeedKmh: distanceSeconds > 0 ? (distanceKm / distanceSeconds) * 3600 : 0,
+    timeBasedSeconds,
+    bodyweightReps,
+  };
 }

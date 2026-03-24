@@ -82,6 +82,9 @@ export function useFinishWorkout(planId: string) {
   return useMutation({
     mutationFn: (workoutId: string) => finishWorkout(workoutId),
     onSuccess: () => {
+      // Keep UI consistent immediately after finishing workout.
+      queryClient.setQueryData(workoutKeys.active(planId), null);
+      queryClient.setQueryData(ACTIVE_WORKOUT_KEY, null);
       queryClient.invalidateQueries({ queryKey: workoutKeys.active(planId) });
       queryClient.invalidateQueries({ queryKey: workoutKeys.history() });
     },

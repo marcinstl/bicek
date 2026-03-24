@@ -357,7 +357,33 @@ export function generateWorkoutSummary(
     for (const s of exerciseSets) {
       summary += `* ${formatSetText(s, exercise)}\n`;
     }
+    summary += `${formatExerciseTotal(exercise, exerciseSets)}\n`;
   }
 
   return summary.trim();
+}
+
+function formatExerciseTotal(exercise: Exercise, exerciseSets: SetWithExercise[]): string {
+  if (exercise.kind === 'weighted_reps') {
+    const totalVolumeKg = exerciseSets.reduce((sum, s) => {
+      if (s.value == null || s.reps == null) return sum;
+      return sum + s.value * s.reps;
+    }, 0);
+    return `Total volume: ${totalVolumeKg.toFixed(0)} kg`;
+  }
+
+  if (exercise.kind === 'distance_per_time') {
+    const totalDistanceKm = exerciseSets.reduce((sum, s) => sum + (s.distance_km ?? 0), 0);
+    const totalSeconds = exerciseSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    const avgSpeed = totalSeconds > 0 ? (totalDistanceKm / totalSeconds) * 3600 : 0;
+    return `Total distance: ${totalDistanceKm.toFixed(2)} km, total time: ${formatTime(totalSeconds)}, avg speed: ${avgSpeed.toFixed(1)} km/h`;
+  }
+
+  if (exercise.kind === 'time_based') {
+    const totalSeconds = exerciseSets.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+    return `Total time: ${formatTime(totalSeconds)}`;
+  }
+
+  const totalReps = exerciseSets.reduce((sum, s) => sum + (s.reps ?? 0), 0);
+  return `Total reps: ${totalReps}`;
 }
