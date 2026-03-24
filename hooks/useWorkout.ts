@@ -28,6 +28,10 @@ export function useActiveWorkout(planId: string) {
     queryKey: workoutKeys.active(planId),
     queryFn: () => getActiveWorkout(planId),
     enabled: !!planId,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 2,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -52,6 +56,10 @@ export function useWorkoutHistory() {
   return useQuery({
     queryKey: workoutKeys.history(),
     queryFn: getWorkoutHistory,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 60,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

@@ -13,6 +13,10 @@ export function usePlans() {
   return useQuery({
     queryKey: planKeys.list(),
     queryFn: getPlans,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 2,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

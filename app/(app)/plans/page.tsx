@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from '@/hooks/usePlans';
@@ -88,6 +88,33 @@ export default function PlansPage() {
   if (isLoading) return <PageSpinner />;
   if (error) return <div className="text-red-600 text-sm p-4">Failed to load plans</div>;
   const latestWorkoutByPlan = getLatestWorkoutTimeByPlan();
+  const sortedPlans = useMemo(
+    () =>
+      [...(plans ?? [])].sort((a, b) => {
+        const aLast = latestWorkoutByPlan.get(a.id);
+        const bLast = latestWorkoutByPlan.get(b.id);
+
+        // Plans without workouts come first.
+        if (aLast == null && bLast != null) return -1;
+        if (aLast != null && bLast == null) return 1;
+
+        // Plans with a known last workout are sorted oldest -> newest.
+        if (aLast != null && bLast != null) return aLast - bLast;
+
+        // Keep deterministic order for plans without workouts.
+        if (a.id === activePlanId) return -1;
+        if (b.id === activePlanId) return 1;
+        return a.created_at.localeCompare(b.created_at);
+      }),
+    [plans, latestWorkoutByPlan, activePlanId]
+  );
+
+  useEffect(() => {
+    // Warm up route payloads so click navigation feels instant.
+    for (const plan of sortedPlans.slice(0, 6)) {
+      router.prefetch(`/plans/${plan.id}`);
+    }
+  }, [router, sortedPlans]);
 
   return (
     <div>
@@ -118,22 +145,7 @@ export default function PlansPage() {
         />
       ) : (
         <ul className="flex flex-col gap-3">
-          {[...(plans ?? [])].sort((a, b) => {
-            const aLast = latestWorkoutByPlan.get(a.id);
-            const bLast = latestWorkoutByPlan.get(b.id);
-
-            // Plans without workouts come first.
-            if (aLast == null && bLast != null) return -1;
-            if (aLast != null && bLast == null) return 1;
-
-            // Plans with a known last workout are sorted oldest -> newest.
-            if (aLast != null && bLast != null) return aLast - bLast;
-
-            // Keep deterministic order for plans without workouts.
-            if (a.id === activePlanId) return -1;
-            if (b.id === activePlanId) return 1;
-            return a.created_at.localeCompare(b.created_at);
-          }).map((plan) => {
+          {sortedPlans.map((plan) => {
             const isActive = plan.id === activePlanId;
             const lastWorkoutTs = latestWorkoutByPlan.get(plan.id);
             return (
@@ -144,12 +156,10 @@ export default function PlansPage() {
               <div className="flex items-center">
                 <Link
                   href={`/plans/${plan.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (openingPlanId === plan.id) return;
-                    setOpeningPlanId(plan.id);
-                    router.push(`/plans/${plan.id}`);
-                  }}
+                  prefetch
+                  onMouseEnter={() => router.prefetch(`/plans/${plan.id}`)}
+                  onTouchStart={() => router.prefetch(`/plans/${plan.id}`)}
+                  onClick={() => setOpeningPlanId(plan.id)}
                   className="flex-1 px-4 py-4 hover:bg-black/5 transition-colors"
                 >
                   <div className="flex items-center gap-2">
