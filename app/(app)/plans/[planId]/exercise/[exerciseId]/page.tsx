@@ -13,6 +13,7 @@ import {
   resolveExerciseKind,
 } from '@/lib/exercise-stats';
 import { PageSpinner } from '@/components/ui/Spinner';
+import { ExerciseHistoryBarChart } from '@/components/charts/ExerciseHistoryBarChart';
 
 interface Props {
   params: Promise<{ planId: string; exerciseId: string }>;
@@ -54,8 +55,8 @@ export default function ExerciseStatsPage({ params }: Props) {
 
   return (
     <div>
-      <div className="mb-6 flex min-w-0 items-center gap-2 sm:gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      <div className="mb-6 border-b border-gray-100 pb-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link
             href={`/plans/${planId}`}
             className="-ml-2 shrink-0 rounded-xl p-2 transition-colors hover:bg-gray-100"
@@ -68,16 +69,19 @@ export default function ExerciseStatsPage({ params }: Props) {
             <h1 className="truncate text-xl font-bold text-gray-900">{exercise.name}</h1>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className={exerciseKindTagClassName(kind)}>{getExerciseKindTitle(kind)}</span>
-              <span className="text-gray-500">· {metricHintForKind(kind)}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-stretch justify-end gap-4 sm:gap-5">
+        <div className="mt-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            {metricHintForKind(kind)}
+          </p>
+          <div className="flex w-full items-stretch justify-between gap-2 sm:gap-3">
           {statCells.map(({ key, raw }) => (
             <div
               key={key}
-              className="flex min-w-11 flex-col items-center justify-end gap-0.5 text-center"
+              className="flex flex-1 min-w-0 flex-col items-center justify-end gap-0.5 text-center"
             >
               <p
                 className={`text-center text-lg font-bold tabular-nums leading-none ${
@@ -89,8 +93,11 @@ export default function ExerciseStatsPage({ params }: Props) {
               <p className="text-[10px] leading-tight text-gray-500 sm:text-xs">{key}</p>
             </div>
           ))}
+          </div>
         </div>
       </div>
+
+      <ExerciseHistoryBarChart history={history} kind={kind} />
     </div>
   );
 }

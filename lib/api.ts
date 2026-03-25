@@ -278,13 +278,15 @@ export async function getExerciseHistory(
   excludeWorkoutId: string
 ): Promise<ExerciseHistoryEntry[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let q = supabase
     .from('sets')
     .select('*, workouts!inner(id, started_at, ended_at, plan_id, user_id, created_at)')
     .eq('exercise_id', exerciseId)
     .not('workouts.ended_at', 'is', null)
-    .neq('workout_id', excludeWorkoutId)
     .order('created_at', { ascending: false });
+  if (excludeWorkoutId) q = q.neq('workout_id', excludeWorkoutId);
+
+  const { data, error } = await q;
   if (error) throw error;
 
   // Group by workout

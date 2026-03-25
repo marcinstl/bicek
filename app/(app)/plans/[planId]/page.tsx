@@ -203,8 +203,9 @@ export default function PlanDetailPage({ params }: Props) {
 
   return (
     <div className="relative pb-28">
-      <div className="mb-6 flex min-w-0 items-center gap-2 sm:gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      <div className="mb-6 border-b border-gray-100 pb-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Link href="/plans" className="-ml-2 shrink-0 rounded-xl p-2 hover:bg-gray-100 transition-colors">
             <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -215,8 +216,13 @@ export default function PlanDetailPage({ params }: Props) {
             <p className="text-sm text-gray-500">{exercises?.length ?? 0} exercises</p>
           </div>
         </div>
+        </div>
 
-        <div className="flex shrink-0 items-stretch justify-end gap-4 sm:gap-5">
+        <div className="mt-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Workouts
+          </p>
+          <div className="flex w-full items-stretch justify-between gap-2 sm:gap-3">
           {(
             [
               { value: workoutStats.month, label: 'Month' },
@@ -224,7 +230,7 @@ export default function PlanDetailPage({ params }: Props) {
               { value: workoutStats.total, label: 'All time' },
             ] as const
           ).map(({ value, label }) => (
-            <div key={label} className="flex min-w-[2.75rem] flex-col items-center justify-end gap-0.5 text-center">
+            <div key={label} className="flex flex-1 min-w-0 flex-col items-center justify-end gap-0.5 text-center">
               <p
                 className={`text-lg font-bold tabular-nums leading-none ${
                   historyLoading && workoutHistory === undefined ? 'text-gray-400' : 'text-gray-900'
@@ -235,6 +241,7 @@ export default function PlanDetailPage({ params }: Props) {
               <p className="text-[10px] leading-tight text-gray-500 sm:text-xs">{label}</p>
             </div>
           ))}
+          </div>
         </div>
       </div>
 
