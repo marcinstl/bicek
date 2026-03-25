@@ -78,6 +78,11 @@ export const finishWorkout = (workoutId: string) =>
     isOfflineMode() ? offline.finishWorkout(workoutId) : online.finishWorkout(workoutId)
   );
 
+export const deleteWorkout = (workoutId: string) =>
+  route(() =>
+    isOfflineMode() ? offline.deleteWorkout(workoutId) : online.deleteWorkout(workoutId)
+  );
+
 export const getWorkoutHistory = () =>
   route(() => (isOfflineMode() ? offline.getWorkoutHistory() : online.getWorkoutHistory()));
 

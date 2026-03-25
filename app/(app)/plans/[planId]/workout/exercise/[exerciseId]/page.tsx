@@ -9,7 +9,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { formatSetText } from '@/lib/api-router';
-import type { ExerciseKind } from '@/lib/types';
+import {
+  exerciseKindTagClassName,
+  getExerciseKindTitle,
+  resolveExerciseKind,
+} from '@/lib/exercise-stats';
 
 interface Props {
   params: Promise<{ planId: string; exerciseId: string }>;
@@ -40,8 +44,9 @@ export default function ExercisePage({ params }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!exercise) return;
 
-    const kind = toExerciseKind(exercise);
+    const kind = resolveExerciseKind(exercise);
     const hasWeighted = kind === 'weighted_reps' && value.trim() && reps.trim();
     const hasBodyweight = kind === 'bodyweight_reps' && reps.trim();
     const hasTime = kind === 'time_based' && durationSeconds && durationSeconds > 0;
@@ -76,33 +81,7 @@ export default function ExercisePage({ params }: Props) {
     return null;
   }
 
-  function toExerciseKind(input?: { kind?: ExerciseKind; metric_type?: string | null; unit?: string | null }): ExerciseKind {
-    if (!input) return 'bodyweight_reps';
-    if (input.kind) return input.kind;
-    if (input.metric_type === 'reps' && input.unit) return 'weighted_reps';
-    if (input.metric_type === 'reps') return 'bodyweight_reps';
-    if (input.metric_type === 'time' || input.metric_type === 'time_sec' || input.metric_type === 'time_min') {
-      return 'time_based';
-    }
-    return 'bodyweight_reps';
-  }
-
-  const exerciseKind = toExerciseKind(exercise);
-
-  function getKindLabel(kind: ExerciseKind): string {
-    switch (kind) {
-      case 'weighted_reps':
-        return 'Weighted reps';
-      case 'bodyweight_reps':
-        return 'Bodyweight reps';
-      case 'time_based':
-        return 'Time-based';
-      case 'distance_per_time':
-        return 'Distance per time';
-      default:
-        return kind;
-    }
-  }
+  const exerciseKind = resolveExerciseKind(exercise);
 
   const pad = (n: number) => String(n).padStart(2, '0');
   function fmtDate(d: string) {
@@ -124,10 +103,8 @@ export default function ExercisePage({ params }: Props) {
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 truncate">{exercise.name}</h1>
-          <div className="flex gap-2 mt-0.5">
-            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg font-medium">
-              {getKindLabel(exerciseKind)}
-            </span>
+          <div className="mt-0.5 flex flex-wrap gap-2">
+            <span className={exerciseKindTagClassName(exerciseKind)}>{getExerciseKindTitle(exerciseKind)}</span>
           </div>
         </div>
       </div>

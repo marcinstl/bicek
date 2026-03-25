@@ -9,25 +9,11 @@ import { useWorkoutTimer, formatDuration } from '@/components/providers/WorkoutT
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PageSpinner } from '@/components/ui/Spinner';
-import type { ExerciseKind, SetWithExercise } from '@/lib/types';
+import type { SetWithExercise } from '@/lib/types';
+import { exerciseKindTagClassName, getExerciseKindTitle } from '@/lib/exercise-stats';
 
 interface Props {
   params: Promise<{ planId: string }>;
-}
-
-function getKindLabel(kind: ExerciseKind): string {
-  switch (kind) {
-    case 'weighted_reps':
-      return 'Weighted reps';
-    case 'bodyweight_reps':
-      return 'Bodyweight reps';
-    case 'time_based':
-      return 'Time-based';
-    case 'distance_per_time':
-      return 'Distance per time';
-    default:
-      return kind;
-  }
 }
 
 export default function WorkoutPage({ params }: Props) {
@@ -102,11 +88,9 @@ export default function WorkoutPage({ params }: Props) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{ex.name}</p>
-                    <p className="text-xs text-gray-400">
-                      {getKindLabel(ex.kind)}
-                    </p>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <p className="truncate font-semibold text-gray-900">{ex.name}</p>
+                    <span className={exerciseKindTagClassName(ex.kind)}>{getExerciseKindTitle(ex.kind)}</span>
                   </div>
                   <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

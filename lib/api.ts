@@ -211,6 +211,14 @@ export async function finishWorkout(workoutId: string): Promise<Workout> {
   return data;
 }
 
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  const supabase = createClient();
+  const { error: setsError } = await supabase.from('sets').delete().eq('workout_id', workoutId);
+  if (setsError) throw setsError;
+  const { error } = await supabase.from('workouts').delete().eq('id', workoutId);
+  if (error) throw error;
+}
+
 export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
   const supabase = createClient();
   const { data, error } = await supabase

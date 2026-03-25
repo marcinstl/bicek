@@ -154,6 +154,13 @@ export async function finishWorkout(workoutId: string): Promise<Workout> {
   return updated;
 }
 
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  const db = await getDb();
+  const sets = await db.getAllFromIndex('sets', 'by_workout', workoutId);
+  for (const s of sets) await db.delete('sets', s.id);
+  await db.delete('workouts', workoutId);
+}
+
 export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
   const db = await getDb();
   const all = await db.getAll('workouts');

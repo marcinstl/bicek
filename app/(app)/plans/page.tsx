@@ -29,11 +29,30 @@ export default function PlansPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openingPlanId, setOpeningPlanId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [fabOpen, setFabOpen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNowMs(Date.now()), 60_000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!fabOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setFabOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fabOpen]);
+
+  useEffect(() => {
+    if (showCreate) setFabOpen(false);
+  }, [showCreate]);
+
+  function openNewPlanModal() {
+    setShowCreate(true);
+    setFabOpen(false);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -118,15 +137,9 @@ export default function PlansPage() {
   if (error) return <div className="text-red-600 text-sm p-4">Failed to load plans</div>;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="relative pb-28">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Plans</h1>
-        <Button onClick={() => setShowCreate(true)} size="sm">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New plan
-        </Button>
       </div>
 
       {plans?.length === 0 ? (
@@ -159,7 +172,11 @@ export default function PlansPage() {
               }
             >
               <div
-                className={`flex items-center overflow-hidden ${isActive ? 'rounded-[15px] bg-emerald-50/95' : 'bg-white/95'}`}
+                className={`flex items-center overflow-hidden transition-colors ${
+                  isActive
+                    ? 'rounded-[15px] bg-emerald-50/95 hover:bg-emerald-100/40'
+                    : 'bg-white/95 hover:bg-black/[0.04]'
+                }`}
               >
                 <Link
                   href={`/plans/${plan.id}`}
@@ -167,7 +184,7 @@ export default function PlansPage() {
                   onMouseEnter={() => router.prefetch(`/plans/${plan.id}`)}
                   onTouchStart={() => router.prefetch(`/plans/${plan.id}`)}
                   onClick={() => setOpeningPlanId(plan.id)}
-                  className="flex-1 px-4 py-4 hover:bg-black/[0.04] transition-colors"
+                  className="flex-1 px-4 py-4"
                 >
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">{plan.name}</p>
@@ -272,6 +289,57 @@ export default function PlansPage() {
           </Button>
         </div>
       </Modal>
+
+      {fabOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-[45] cursor-pointer bg-black/20 backdrop-blur-[1px]"
+          aria-label="Close menu"
+          onClick={() => setFabOpen(false)}
+        />
+      )}
+      <div
+        className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
+        style={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <div className="pointer-events-none flex w-full max-w-2xl justify-end">
+          <div className="pointer-events-auto flex flex-col-reverse items-end gap-3">
+            <button
+              type="button"
+              onClick={() => setFabOpen((o) => !o)}
+              aria-expanded={fabOpen}
+              aria-haspopup="menu"
+              aria-label={fabOpen ? 'Close plans menu' : 'Plans actions'}
+              className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-600/40 transition-transform duration-200 ease-out active:scale-95 motion-reduce:transition-none"
+            >
+              <svg
+                className={`h-7 w-7 transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none ${fabOpen ? 'rotate-45' : 'rotate-0'}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            {fabOpen && (
+              <div className="flex flex-col-reverse items-end gap-3 stagger-fab-actions">
+                <button
+                  type="button"
+                  onClick={openNewPlanModal}
+                  className="flex cursor-pointer items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/35 transition-transform active:scale-[0.98]"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New plan
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

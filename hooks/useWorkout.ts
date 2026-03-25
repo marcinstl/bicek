@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addSet,
   deleteSet,
+  deleteWorkout,
   finishWorkout,
   getActiveWorkout,
   getSets,
@@ -87,6 +88,29 @@ export function useFinishWorkout(planId: string) {
       queryClient.setQueryData(ACTIVE_WORKOUT_KEY, null);
       queryClient.invalidateQueries({ queryKey: workoutKeys.active(planId) });
       queryClient.invalidateQueries({ queryKey: workoutKeys.history() });
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('exercise-history-all'),
+      });
+    },
+  });
+}
+
+export function useDeleteWorkout(planId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (workoutId: string) => deleteWorkout(workoutId),
+    onSuccess: (_data, workoutId) => {
+      queryClient.removeQueries({ queryKey: workoutKeys.detail(workoutId) });
+      queryClient.removeQueries({ queryKey: workoutKeys.sets(workoutId) });
+      queryClient.invalidateQueries({ queryKey: workoutKeys.active(planId) });
+      queryClient.invalidateQueries({ queryKey: workoutKeys.history() });
+      queryClient.invalidateQueries({ queryKey: ACTIVE_WORKOUT_KEY });
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          (q.queryKey.includes('exercise-history-all') || q.queryKey.includes('exercise-history')),
+      });
     },
   });
 }
@@ -133,6 +157,18 @@ export function useExerciseHistory(exerciseId: string, excludeWorkoutId: string)
     queryKey: [...workoutKeys.all, 'exercise-history', exerciseId, excludeWorkoutId],
     queryFn: () => getExerciseHistory(exerciseId, excludeWorkoutId),
     enabled: !!exerciseId && !!excludeWorkoutId,
+  });
+}
+
+/** All completed-workout sets for an exercise (no workout excluded). */
+export function useExerciseHistoryAll(exerciseId: string) {
+  return useQuery({
+    queryKey: [...workoutKeys.all, 'exercise-history-all', exerciseId],
+    queryFn: () => getExerciseHistory(exerciseId, ''),
+    enabled: !!exerciseId,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    refetchOnMount: true,
   });
 }
 

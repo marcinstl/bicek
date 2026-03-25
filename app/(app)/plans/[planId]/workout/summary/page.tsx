@@ -1,11 +1,12 @@
 'use client';
 
-import { use } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { use, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useWorkout, useWorkoutSets } from '@/hooks/useWorkout';
+import { useWorkout, useWorkoutSets, useDeleteWorkout } from '@/hooks/useWorkout';
 import { useExercises } from '@/hooks/useExercises';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { generateWorkoutSummary, formatSetText } from '@/lib/api-router';
 import type { Exercise, SetWithExercise } from '@/lib/types';
@@ -16,12 +17,29 @@ interface Props {
 
 export default function WorkoutSummaryPage({ params }: Props) {
   const { planId } = use(params);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const workoutId = searchParams.get('workoutId') ?? '';
 
   const { data: workout, isLoading: wLoading } = useWorkout(workoutId);
   const { data: sets = [], isLoading: sLoading } = useWorkoutSets(workoutId);
   const { data: exercises = [], isLoading: eLoading } = useExercises(planId);
+  const deleteWorkoutMut = useDeleteWorkout(planId);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  async function handleDeleteWorkout() {
+    if (!workoutId) return;
+    setDeleteError('');
+    try {
+      await deleteWorkoutMut.mutateAsync(workoutId);
+      setShowDeleteConfirm(false);
+      router.push(`/plans/${planId}`);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Failed to delete workout');
+    }
+  }
 
   if (wLoading || sLoading || eLoading) return <PageSpinner />;
   if (!workout) return <div className="text-sm text-gray-500 p-4">Workout not found</div>;
@@ -145,6 +163,58 @@ export default function WorkoutSummaryPage({ params }: Props) {
           <Button className="w-full">Back to plan</Button>
         </Link>
       </div>
+
+      <div className="mt-8 pt-6 border-t border-gray-100">
+        <Button
+          type="button"
+          variant="danger"
+          className="w-full"
+          onClick={() => {
+            setDeleteError('');
+            setShowDeleteConfirm(true);
+          }}
+        >
+          Delete workout
+        </Button>
+      </div>
+
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeleteError('');
+        }}
+        title="Delete this workout?"
+      >
+        <p className="mb-4 text-sm text-gray-600">
+          This will permanently remove this workout and every set you logged in it. You can&apos;t undo this.
+        </p>
+        {deleteError && (
+          <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {deleteError}
+          </p>
+        )}
+        <div className="flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setShowDeleteConfirm(false);
+              setDeleteError('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            loading={deleteWorkoutMut.isPending}
+            onClick={handleDeleteWorkout}
+          >
+            Delete
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

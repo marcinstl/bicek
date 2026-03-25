@@ -67,6 +67,25 @@ body {
   animation-delay: 0.38s;
 }
 
+/* FAB speed-dial actions (same motion as stagger-cards) */
+.stagger-fab-actions > button {
+  animation: card-rise 0.42s ease-out both;
+}
+
+.stagger-fab-actions > button:nth-child(1) {
+  animation-delay: 0.02s;
+}
+
+.stagger-fab-actions > button:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-fab-actions > button {
+    animation: none;
+  }
+}
+
 /* Safe area for bottom nav on mobile */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
