@@ -101,6 +101,12 @@ export function useDeleteWorkout(planId: string) {
   return useMutation({
     mutationFn: (workoutId: string) => deleteWorkout(workoutId),
     onSuccess: (_data, workoutId) => {
+      // If history page isn't mounted, it won't refetch on mount (refetchOnMount=false),
+      // so we must update the cached list eagerly.
+      queryClient.setQueryData(workoutKeys.history(), (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((w: any) => w?.id !== workoutId);
+      });
       queryClient.removeQueries({ queryKey: workoutKeys.detail(workoutId) });
       queryClient.removeQueries({ queryKey: workoutKeys.sets(workoutId) });
       queryClient.invalidateQueries({ queryKey: workoutKeys.active(planId) });

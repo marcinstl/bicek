@@ -27,7 +27,7 @@ const RANGE_OPTIONS: Array<{ value: ExerciseHistoryRange; label: string }> = [
 ];
 
 export function ExerciseHistoryBarChart({ history, kind }: Props) {
-  const [range, setRange] = useState<ExerciseHistoryRange>('month');
+  const [range, setRange] = useState<ExerciseHistoryRange>('week');
   const [offset, setOffset] = useState(0);
 
   const viewNow = useMemo(() => {

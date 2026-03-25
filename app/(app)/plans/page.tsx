@@ -90,7 +90,12 @@ export default function PlansPage() {
     const diffMs = nowMs - dateMs;
     const minutes = Math.floor(diffMs / (1000 * 60));
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const startOfDay = (ms: number) => {
+      const d = new Date(ms);
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    };
+    const calendarDays = Math.max(0, Math.floor((startOfDay(nowMs) - startOfDay(dateMs)) / 86_400_000));
+    const days = calendarDays;
     const months = Math.floor(days / 30);
     const years = Math.floor(days / 365);
     const locale = typeof navigator !== 'undefined' ? navigator.language : 'en';
@@ -98,7 +103,7 @@ export default function PlansPage() {
 
     if (minutes < 1) return rtf.format(0, 'second');
     if (minutes < 60) return rtf.format(-minutes, 'minute');
-    if (hours < 24) return rtf.format(-hours, 'hour');
+    if (days < 1 && hours < 24) return rtf.format(-hours, 'hour');
     if (days < 30) return rtf.format(-days, 'day');
     if (months < 12) return rtf.format(-months, 'month');
     return rtf.format(-years, 'year');
