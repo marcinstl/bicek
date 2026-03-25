@@ -194,13 +194,17 @@ export function WorkoutHeatmap({ workouts }: { workouts: Workout[] | undefined }
         let v = 0;
         for (const s of sets) {
           if (metric === 'weighted_reps') {
+            if (s.exercises.kind !== 'weighted_reps') continue;
             if (s.value == null || s.reps == null) continue;
             v += s.value * s.reps;
           } else if (metric === 'bodyweight_reps') {
+            if (s.exercises.kind !== 'bodyweight_reps') continue;
             v += s.reps ?? 0;
           } else if (metric === 'time_based') {
+            if (s.exercises.kind !== 'time_based') continue;
             v += s.duration_seconds ?? 0;
           } else if (metric === 'distance_per_time') {
+            if (s.exercises.kind !== 'distance_per_time') continue;
             v += s.distance_km ?? 0;
           }
         }
