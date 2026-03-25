@@ -14,7 +14,7 @@ export function getExerciseKindTitle(kind: ExerciseKind): string {
 
 /** Distinct tag colors per kind (no yellow). */
 const KIND_TAG_STYLES: Record<ExerciseKind, string> = {
-  weighted_reps: 'bg-teal-100 text-teal-800 ring-1 ring-inset ring-teal-200/80',
+  weighted_reps: 'bg-orange-100 text-orange-800 ring-1 ring-inset ring-orange-200/80',
   bodyweight_reps: 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-200/80',
   time_based: 'bg-sky-100 text-sky-800 ring-1 ring-inset ring-sky-200/80',
   distance_per_time: 'bg-rose-100 text-rose-800 ring-1 ring-inset ring-rose-200/80',

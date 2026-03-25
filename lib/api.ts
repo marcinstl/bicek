@@ -243,6 +243,18 @@ export async function getSets(workoutId: string): Promise<SetWithExercise[]> {
   return (data ?? []) as SetWithExercise[];
 }
 
+export async function getSetsForWorkouts(workoutIds: string[]): Promise<SetWithExercise[]> {
+  if (workoutIds.length === 0) return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('sets')
+    .select('*, exercises(name, kind)')
+    .in('workout_id', workoutIds)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SetWithExercise[];
+}
+
 export async function addSet(input: AddSetInput): Promise<Set> {
   const supabase = createClient();
   const { data, error } = await supabase

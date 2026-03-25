@@ -91,6 +91,11 @@ export const getWorkoutHistory = () =>
 export const getSets = (workoutId: string) =>
   route(() => (isOfflineMode() ? offline.getSets(workoutId) : online.getSets(workoutId)));
 
+export const getSetsForWorkouts = (workoutIds: string[]) =>
+  route(() =>
+    isOfflineMode() ? offline.getSetsForWorkouts(workoutIds) : online.getSetsForWorkouts(workoutIds)
+  );
+
 export const addSet = (input: AddSetInput) =>
   route(() => (isOfflineMode() ? offline.addSet(input) : online.addSet(input)));
 

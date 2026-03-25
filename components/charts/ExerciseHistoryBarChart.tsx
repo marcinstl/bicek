@@ -26,6 +26,14 @@ const RANGE_OPTIONS: Array<{ value: ExerciseHistoryRange; label: string }> = [
   { value: 'year', label: 'Year' },
 ];
 
+function barColorForKind(kind: ExerciseKind): string {
+  if (kind === 'weighted_reps') return '#f97316'; // orange-500
+  if (kind === 'bodyweight_reps') return '#8b5cf6'; // violet-500
+  if (kind === 'time_based') return '#0ea5e9'; // sky-500
+  if (kind === 'distance_per_time') return '#f43f5e'; // rose-500
+  return '#10b981'; // emerald-500 fallback
+}
+
 export function ExerciseHistoryBarChart({ history, kind }: Props) {
   const [range, setRange] = useState<ExerciseHistoryRange>('week');
   const [offset, setOffset] = useState(0);
@@ -77,7 +85,7 @@ export function ExerciseHistoryBarChart({ history, kind }: Props) {
         borderColor: '#e5e7eb',
         strokeDashArray: 3,
       },
-      colors: ['#10b981'],
+      colors: [barColorForKind(kind)],
       xaxis: {
         categories: points.map((p) => p.label),
         labels: {

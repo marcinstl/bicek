@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageSpinner } from '@/components/ui/Spinner';
 import type { Plan } from '@/lib/types';
+import { WorkoutHeatmap } from '@/components/charts/WorkoutHeatmap';
 
 export default function PlansPage() {
   const router = useRouter();
@@ -145,6 +146,9 @@ export default function PlansPage() {
     <div className="relative pb-28">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Plans</h1>
+        <div className="mt-4">
+          <WorkoutHeatmap workouts={workoutHistory} />
+        </div>
       </div>
 
       {plans?.length === 0 ? (

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addSet,
@@ -8,6 +9,7 @@ import {
   finishWorkout,
   getActiveWorkout,
   getSets,
+  getSetsForWorkouts,
   getWorkout,
   getWorkoutHistory,
   getExerciseHistory,
@@ -22,7 +24,21 @@ export const workoutKeys = {
   detail: (workoutId: string) => [...workoutKeys.all, 'detail', workoutId] as const,
   sets: (workoutId: string) => [...workoutKeys.all, 'sets', workoutId] as const,
   history: () => [...workoutKeys.all, 'history'] as const,
+  setsBatch: (workoutIdsKey: string) => [...workoutKeys.all, 'sets-batch', workoutIdsKey] as const,
 };
+
+export function useSetsForWorkouts(workoutIds: string[], enabled: boolean) {
+  const key = useMemo(() => [...workoutIds].sort().join(','), [workoutIds]);
+  return useQuery({
+    queryKey: workoutKeys.setsBatch(key),
+    queryFn: () => getSetsForWorkouts(workoutIds),
+    enabled: enabled && workoutIds.length > 0,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+}
 
 export function useActiveWorkout(planId: string) {
   return useQuery({

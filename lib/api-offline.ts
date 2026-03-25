@@ -196,6 +196,32 @@ export async function getSets(workoutId: string): Promise<SetWithExercise[]> {
   return result;
 }
 
+export async function getSetsForWorkouts(workoutIds: string[]): Promise<SetWithExercise[]> {
+  if (workoutIds.length === 0) return [];
+  const db = await getDb();
+  const wanted = new Set(workoutIds);
+  const allSets = await db.getAll('sets');
+  const filtered = allSets.filter((s) => wanted.has(s.workout_id));
+  filtered.sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  const exerciseCache = new Map<string, Exercise | undefined>();
+  const result: SetWithExercise[] = [];
+  for (const s of filtered) {
+    if (!exerciseCache.has(s.exercise_id)) {
+      exerciseCache.set(s.exercise_id, await db.get('exercises', s.exercise_id));
+    }
+    const exercise = exerciseCache.get(s.exercise_id);
+    result.push({
+      ...s,
+      exercises: {
+        name: exercise?.name ?? 'Unknown',
+        kind: exercise?.kind ?? 'bodyweight_reps',
+      },
+    });
+  }
+  return result;
+}
+
 export async function addSet(input: AddSetInput): Promise<Set> {
   const db = await getDb();
   const set: Set = {
