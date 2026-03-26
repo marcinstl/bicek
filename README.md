@@ -99,9 +99,9 @@ Open [http://localhost:3000](http://localhost:3000).
 |------------|--------------------------------------------------------------------|
 | profiles   | id (→ auth.users), created_at                                      |
 | plans      | id, user_id, name, created_at                                      |
-| exercises  | id, plan_id, name, unit?, metric_type? (reps\|time), created_at    |
+| exercises  | id, plan_id, name, kind, created_at                                 |
 | workouts   | id, user_id, plan_id, started_at, ended_at?, created_at            |
-| sets       | id, workout_id, exercise_id, value?, reps?, duration_seconds?, note? |
+| sets       | id, workout_id, exercise_id, value?, reps?, duration_seconds?, distance_km?, xp, note? |
 
 RLS is enabled on all tables. Users can only access their own data.
 

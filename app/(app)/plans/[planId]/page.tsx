@@ -160,21 +160,11 @@ export default function PlanDetailPage({ params }: Props) {
     router.push(`/plans/${planId}/workout?workoutId=${workout.id}`);
   }
 
-  function toExerciseKind(ex: Exercise): ExerciseKind {
-    if (ex.kind) return ex.kind;
-    if (ex.metric_type === 'reps' && ex.unit) return 'weighted_reps';
-    if (ex.metric_type === 'reps') return 'bodyweight_reps';
-    if (ex.metric_type === 'time' || ex.metric_type === 'time_sec' || ex.metric_type === 'time_min') {
-      return 'time_based';
-    }
-    return 'bodyweight_reps';
-  }
-
   function openEdit(ex: Exercise) {
     setEditingExercise(ex);
     setForm({
       name: ex.name,
-      kind: toExerciseKind(ex),
+      kind: ex.kind,
     });
     setFormError('');
   }
@@ -318,8 +308,8 @@ export default function PlanDetailPage({ params }: Props) {
               >
                 <p className="truncate font-medium text-gray-900">{ex.name}</p>
                 <div className="mt-1 flex flex-wrap gap-2">
-                  <span className={exerciseKindTagClassName(toExerciseKind(ex))}>
-                    {getExerciseKindTitle(toExerciseKind(ex))}
+                  <span className={exerciseKindTagClassName(ex.kind)}>
+                    {getExerciseKindTitle(ex.kind)}
                   </span>
                 </div>
               </Link>

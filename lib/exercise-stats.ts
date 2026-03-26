@@ -25,13 +25,7 @@ export function exerciseKindTagClassName(kind: ExerciseKind): string {
 }
 
 export function resolveExerciseKind(ex: Exercise): ExerciseKind {
-  if (ex.kind) return ex.kind;
-  if (ex.metric_type === 'reps' && ex.unit) return 'weighted_reps';
-  if (ex.metric_type === 'reps') return 'bodyweight_reps';
-  if (ex.metric_type === 'time' || ex.metric_type === 'time_sec' || ex.metric_type === 'time_min') {
-    return 'time_based';
-  }
-  return 'bodyweight_reps';
+  return ex.kind;
 }
 
 function workoutEndedDate(entry: ExerciseHistoryEntry): Date {

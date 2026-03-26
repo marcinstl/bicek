@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase';
+import { computeSetXp } from '@/lib/rpg/xp';
 import type {
   Plan,
   Exercise,
+  ExerciseKind,
   Workout,
   Set,
   SetWithExercise,
@@ -257,6 +259,24 @@ export async function getSetsForWorkouts(workoutIds: string[]): Promise<SetWithE
 
 export async function addSet(input: AddSetInput): Promise<Set> {
   const supabase = createClient();
+  let xp: number | null = input.xp ?? null;
+
+  if (xp == null) {
+    const { data: exercise, error: exerciseError } = await supabase
+      .from('exercises')
+      .select('kind')
+      .eq('id', input.exercise_id)
+      .single();
+    if (exerciseError) throw exerciseError;
+
+    xp = computeSetXp(exercise.kind as ExerciseKind, {
+      value: input.value ?? null,
+      reps: input.reps ?? null,
+      duration_seconds: input.duration_seconds ?? null,
+      distance_km: input.distance_km ?? null,
+    });
+  }
+
   const { data, error } = await supabase
     .from('sets')
     .insert({
@@ -266,12 +286,19 @@ export async function addSet(input: AddSetInput): Promise<Set> {
       reps: input.reps ?? null,
       duration_seconds: input.duration_seconds ?? null,
       distance_km: input.distance_km ?? null,
+      xp,
       note: input.note ?? null,
     })
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function triggerXpBackfillBatch(): Promise<{ processed: number }> {
+  const res = await fetch('/api/rpg/backfill', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to run XP backfill');
+  return (await res.json()) as { processed: number };
 }
 
 export async function deleteSet(id: string): Promise<void> {

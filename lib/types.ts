@@ -17,9 +17,6 @@ export interface Exercise {
   plan_id: string;
   name: string;
   kind: ExerciseKind;
-  // legacy fields kept for older rows/offline data during migration
-  unit?: string | null;
-  metric_type?: 'reps' | 'time' | 'time_sec' | 'time_min' | null;
   created_at: string;
 }
 
@@ -44,6 +41,7 @@ export interface Set {
   reps: number | null;
   duration_seconds: number | null;
   distance_km: number | null;
+  xp: number | null;
   note: string | null;
   created_at: string;
 }
@@ -79,5 +77,6 @@ export interface AddSetInput {
   reps?: number | null;
   duration_seconds?: number | null;
   distance_km?: number | null;
+  xp?: number | null;
   note?: string | null;
 }

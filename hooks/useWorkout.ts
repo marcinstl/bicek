@@ -75,7 +75,7 @@ export function useWorkoutHistory() {
     queryFn: getWorkoutHistory,
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 60,
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
   });
 }
@@ -156,6 +156,7 @@ export function useAddSet(workoutId: string) {
           reps: input.reps ?? null,
           duration_seconds: input.duration_seconds ?? null,
           distance_km: input.distance_km ?? null,
+          xp: input.xp ?? null,
           note: input.note ?? null,
           created_at: new Date().toISOString(),
         },
@@ -170,6 +171,9 @@ export function useAddSet(workoutId: string) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workoutKeys.sets(workoutId) });
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('sets-batch'),
+      });
     },
   });
 }
@@ -201,6 +205,9 @@ export function useDeleteSet(workoutId: string) {
     mutationFn: (id: string) => deleteSet(id),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workoutKeys.sets(workoutId) });
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('sets-batch'),
+      });
     },
   });
 }

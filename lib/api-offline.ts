@@ -1,4 +1,5 @@
 import { getDb, OFFLINE_USER_ID, randomId } from '@/lib/offline-db';
+import { computeSetXp } from '@/lib/rpg/xp';
 import type {
   Plan,
   Exercise,
@@ -224,6 +225,15 @@ export async function getSetsForWorkouts(workoutIds: string[]): Promise<SetWithE
 
 export async function addSet(input: AddSetInput): Promise<Set> {
   const db = await getDb();
+  const exercise = await db.get('exercises', input.exercise_id);
+  const kind = exercise?.kind ?? 'bodyweight_reps';
+  const xp = input.xp ?? computeSetXp(kind, {
+    value: input.value ?? null,
+    reps: input.reps ?? null,
+    duration_seconds: input.duration_seconds ?? null,
+    distance_km: input.distance_km ?? null,
+  });
+
   const set: Set = {
     id: randomId(),
     workout_id: input.workout_id,
@@ -232,6 +242,7 @@ export async function addSet(input: AddSetInput): Promise<Set> {
     reps: input.reps ?? null,
     duration_seconds: input.duration_seconds ?? null,
     distance_km: input.distance_km ?? null,
+    xp,
     note: input.note ?? null,
     created_at: new Date().toISOString(),
   };

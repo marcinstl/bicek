@@ -102,6 +102,11 @@ export const addSet = (input: AddSetInput) =>
 export const deleteSet = (id: string) =>
   route(() => (isOfflineMode() ? offline.deleteSet(id) : online.deleteSet(id)));
 
+export const triggerXpBackfillBatch = () =>
+  route(() =>
+    isOfflineMode() ? Promise.resolve({ processed: 0 }) : online.triggerXpBackfillBatch()
+  );
+
 // ─── Exercise history ─────────────────────────────────────────────────────────
 
 export const getExerciseHistory = (exerciseId: string, excludeWorkoutId: string) =>

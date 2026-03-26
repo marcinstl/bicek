@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from '@/lib/api';
-import { isOfflineMode, disableOfflineMode } from '@/lib/api-router';
+import { isOfflineMode, disableOfflineMode, triggerXpBackfillBatch } from '@/lib/api-router';
 import { WorkoutTimerProvider, useWorkoutTimer, formatDuration } from '@/components/providers/WorkoutTimerContext';
 import { cn } from '@/lib/utils';
 
@@ -102,6 +102,28 @@ function AppHeader() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isOfflineMode()) return;
+    if (sessionStorage.getItem('xp-backfill-done') === 'true') return;
+
+    void (async () => {
+      try {
+        let totalProcessed = 0;
+        for (let i = 0; i < 8; i += 1) {
+          const { processed } = await triggerXpBackfillBatch();
+          totalProcessed += processed;
+          if (processed === 0) break;
+        }
+        if (totalProcessed >= 0) {
+          sessionStorage.setItem('xp-backfill-done', 'true');
+        }
+      } catch {
+        // Non-blocking maintenance task: ignore and retry on next app open.
+      }
+    })();
+  }, []);
 
   return (
     <WorkoutTimerProvider>
