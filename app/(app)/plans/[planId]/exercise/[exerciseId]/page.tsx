@@ -34,6 +34,7 @@ export default function ExerciseStatsPage({ params }: Props) {
 
   const statCells = useMemo(
     () => [
+      { key: 'Week' as const, raw: totals.week },
       { key: 'Month' as const, raw: totals.month },
       { key: 'Year' as const, raw: totals.year },
       { key: 'All time' as const, raw: totals.all },

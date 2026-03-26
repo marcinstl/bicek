@@ -181,8 +181,14 @@ export default function PlanDetailPage({ params }: Props) {
 
   const workoutStats = useMemo(() => {
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = todayStart.getDay(); // 0=Sun..6=Sat
+    const shift = day === 0 ? -6 : 1 - day;
+    const weekStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + shift);
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7);
     const y = now.getFullYear();
     const m = now.getMonth();
+    let week = 0;
     let month = 0;
     let year = 0;
     let total = 0;
@@ -190,12 +196,13 @@ export default function PlanDetailPage({ params }: Props) {
       if (w.plan_id !== planId || !w.ended_at) continue;
       total += 1;
       const d = new Date(w.ended_at);
+      if (d >= weekStart && d < weekEnd) week += 1;
       if (d.getFullYear() === y) {
         year += 1;
         if (d.getMonth() === m) month += 1;
       }
     }
-    return { month, year, total };
+    return { week, month, year, total };
   }, [workoutHistory, planId]);
 
   const workoutFabDisabled =
@@ -225,6 +232,7 @@ export default function PlanDetailPage({ params }: Props) {
           <div className="flex w-full items-stretch justify-between gap-2 sm:gap-3">
           {(
             [
+              { value: workoutStats.week, label: 'Week' },
               { value: workoutStats.month, label: 'Month' },
               { value: workoutStats.year, label: 'Year' },
               { value: workoutStats.total, label: 'All time' },

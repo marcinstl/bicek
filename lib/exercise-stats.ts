@@ -66,6 +66,7 @@ function sumSetsMetric(sets: Set[], kind: ExerciseKind): number {
 }
 
 export interface ExercisePeriodTotals {
+  week: number;
   month: number;
   year: number;
   all: number;
@@ -84,14 +85,19 @@ export function aggregateExerciseHistoryByPeriod(
   kind: ExerciseKind,
   now = new Date()
 ): ExercisePeriodTotals {
+  const weekStart = startOfWeekMonday(now).getTime();
+  const weekEnd = addDays(startOfWeekMonday(now), 7).getTime();
+  const weekSets: Set[] = [];
   const monthSets: Set[] = [];
   const yearSets: Set[] = [];
   const allSets: Set[] = [];
 
   for (const entry of history ?? []) {
     const d = workoutEndedDate(entry);
+    const endedMs = d.getTime();
     const sets = entry.sets;
     allSets.push(...sets);
+    if (endedMs >= weekStart && endedMs < weekEnd) weekSets.push(...sets);
     if (inCalendarYear(d, now)) {
       yearSets.push(...sets);
       if (inCalendarMonth(d, now)) monthSets.push(...sets);
@@ -99,6 +105,7 @@ export function aggregateExerciseHistoryByPeriod(
   }
 
   return {
+    week: sumSetsMetric(weekSets, kind),
     month: sumSetsMetric(monthSets, kind),
     year: sumSetsMetric(yearSets, kind),
     all: sumSetsMetric(allSets, kind),
