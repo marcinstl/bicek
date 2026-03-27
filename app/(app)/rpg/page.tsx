@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
-import { PIXEL_ART_ICONS } from '@/lib/rpg/pixelart-icons';
+import { PIXEL_ART_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type { ExerciseKind } from '@/lib/types';
 import { getExerciseKindTitle } from '@/lib/exercise-stats';
 
@@ -15,7 +15,8 @@ type RpgEvent = {
   workoutId: string;
   timestamp: string;
   workoutTimeMs: number;
-  title: string;
+  planName: string;
+  gainedXp: number;
   levelUpLabel: string | null;
 };
 
@@ -46,6 +47,10 @@ const EQUIPMENT_SLOTS = [
   { id: 'slot-boots', row: 4, col: 2 },
 ] as const;
 
+type EquipmentSlotId = (typeof EQUIPMENT_SLOTS)[number]['id'];
+type EquippedBySlot = Partial<Record<EquipmentSlotId, string>>;
+const EQUIPMENT_STORAGE_KEY = 'rpg-equipment-v1';
+
 function formatEventDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -60,6 +65,39 @@ export default function RpgPage() {
   const { data: history = [], isLoading: historyLoading } = useWorkoutHistory();
   const workoutIds = useMemo(() => history.map((w) => w.id), [history]);
   const { data: sets = [], isLoading: setsLoading } = useSetsForWorkouts(workoutIds, workoutIds.length > 0);
+  const [equippedBySlot, setEquippedBySlot] = useState<EquippedBySlot>({});
+  const [equipmentHydrated, setEquipmentHydrated] = useState(false);
+  const [showTotalExp, setShowTotalExp] = useState(true);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(EQUIPMENT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as EquippedBySlot;
+        setEquippedBySlot(parsed);
+      }
+    } catch {
+      // Ignore malformed localStorage data.
+    } finally {
+      setEquipmentHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!equipmentHydrated) return;
+    window.localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(equippedBySlot));
+  }, [equippedBySlot, equipmentHydrated]);
+
+  const handleEquipItem = (fileName: string, eqSlot: EquipmentSlotId) => {
+    setEquippedBySlot((prev) => {
+      if (prev[eqSlot] === fileName) {
+        const next = { ...prev };
+        delete next[eqSlot];
+        return next;
+      }
+      return { ...prev, [eqSlot]: fileName };
+    });
+  };
 
   const totalXp = useMemo(() => {
     return sets.reduce((sum, set) => {
@@ -124,6 +162,7 @@ export default function RpgPage() {
 
       const workoutTimestamp = workout.ended_at ?? workout.started_at;
       const workoutTimeMs = new Date(workoutTimestamp).getTime();
+      const planName = (workout as typeof workout & { plans?: { name?: string | null } }).plans?.name ?? 'Workout';
 
       const levelUpLabel = afterLevel > beforeLevel ? `Level Up ${beforeLevel} > ${afterLevel}` : null;
 
@@ -132,7 +171,8 @@ export default function RpgPage() {
         workoutId: workout.id,
         timestamp: workoutTimestamp,
         workoutTimeMs,
-        title: `Workout completed (+${workoutXp} XP)`,
+        planName,
+        gainedXp: workoutXp,
         levelUpLabel,
       });
     }
@@ -147,10 +187,6 @@ export default function RpgPage() {
 
   return (
     <div className="relative pb-28">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">RPG & Gamification</h1>
-      </div>
-      
       <div className="rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-6">
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
           <div>
@@ -165,8 +201,8 @@ export default function RpgPage() {
 
             <div className="mt-4 w-full max-w-sm">
               <div className="mb-1 flex justify-between text-xs text-gray-500">
-                <span>{progress.currentLevelXp} XP</span>
-                <span>{progress.nextLevelXp} XP</span>
+                <span />
+                <span>{progress.nextLevelXp} Exp</span>
               </div>
               <div className="h-2.5 w-full rounded-full bg-gray-100">
                 <div className="h-2.5 rounded-full bg-emerald-500" style={{ width: `${progress.progressPct}%` }} />
@@ -175,10 +211,13 @@ export default function RpgPage() {
                 {loading ? (
                   <p className="text-xs text-gray-400">Liczenie XP...</p>
                 ) : (
-                  <>
-                    <p className="text-xs text-gray-500">Total: {progress.totalXp} XP</p>
-                    <p className="mt-1 text-xs text-gray-400">Potrzebny XP: {progress.xpToNextLevel}</p>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => setShowTotalExp((prev) => !prev)}
+                    className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    {showTotalExp ? `Total Exp: ${progress.totalXp}` : `Potrzebny Exp: ${progress.xpToNextLevel}`}
+                  </button>
                 )}
               </div>
             </div>
@@ -191,7 +230,7 @@ export default function RpgPage() {
                   <div key={kind}>
                     <div className="mb-1 flex items-center justify-between">
                       <span className="text-xs font-medium text-gray-700">{getExerciseKindTitle(kind)}</span>
-                      <span className="text-xs text-gray-500">Lv. {level}</span>
+                      <span className="text-xs font-medium text-gray-700">{level}</span>
                     </div>
                     <div className="h-2 rounded-full bg-gray-100">
                       <div
@@ -213,7 +252,17 @@ export default function RpgPage() {
                   key={slot.id}
                   className="flex h-14 w-14 items-center justify-center rounded-md border border-gray-300 bg-gray-50"
                   style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
-                />
+                >
+                  {equippedBySlot[slot.id] ? (
+                    <Image
+                      src={`/pixelart/${equippedBySlot[slot.id]}`}
+                      alt={equippedBySlot[slot.id] ?? slot.id}
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 pixel-art"
+                    />
+                  ) : null}
+                </div>
 
               ))}
             </div>
@@ -236,7 +285,8 @@ export default function RpgPage() {
                   className="rounded-xl border border-gray-200/80 bg-white px-3 py-2 flex items-start gap-3 transition-colors hover:border-emerald-200 hover:bg-emerald-50/30"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                    <p className="text-sm font-medium text-gray-900">{event.planName}</p>
+                    <p className="mt-0.5 text-xs text-gray-600">{event.gainedXp} Exp</p>
                     <p className="mt-1 text-[11px] text-gray-400">{formatEventDate(event.timestamp)}</p>
                   </div>
                   <div className="shrink-0">
@@ -260,21 +310,27 @@ export default function RpgPage() {
       <section className="mt-4 rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-900">Pixel Art Items</h3>
         <div className="mt-3 flex flex-wrap gap-2">
-          {PIXEL_ART_ICONS.map((fileName) => (
-            <div
-              key={fileName}
-              className="flex h-14 w-14 items-center justify-center rounded-md border border-gray-300 bg-gray-50"
-              title={fileName}
+          {PIXEL_ART_ITEMS.map((item) => {
+            const isEquipped = equippedBySlot[item.eqSlot] === item.fileName;
+            return (
+            <button
+              key={item.fileName}
+              type="button"
+              onClick={() => handleEquipItem(item.fileName, item.eqSlot)}
+              className={`flex h-14 w-14 items-center justify-center rounded-md border bg-gray-50 transition-colors ${
+                isEquipped ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'
+              }`}
+              title={`${item.name} | ${item.type} | ${item.eqSlot}`}
             >
               <Image
-                src={`/pixelart/${fileName}`}
-                alt={fileName}
+                src={`/pixelart/${item.fileName}`}
+                alt={item.name}
                 width={48}
                 height={48}
                 className="h-12 w-12 pixel-art"
               />
-            </div>
-          ))}
+            </button>
+          )})}
         </div>
       </section>
     </div>
