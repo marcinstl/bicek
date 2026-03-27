@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:client": "npx vercel --prod",
+    "deploy:database": "supabase db push"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
