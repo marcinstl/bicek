@@ -80,3 +80,26 @@ export interface AddSetInput {
   xp?: number | null;
   note?: string | null;
 }
+
+export interface RpgItem {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  eq_slot: string;
+  icon_path: string;
+  created_at: string;
+}
+
+export interface RpgEquipmentRow {
+  id: string;
+  user_id: string;
+  slot: string;
+  item_id: string;
+  equipped_at: string;
+  updated_at: string;
+}
+
+export interface RpgEquipmentWithItem extends RpgEquipmentRow {
+  item: RpgItem;
+}

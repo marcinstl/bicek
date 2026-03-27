@@ -116,6 +116,20 @@ export const getExerciseHistory = (exerciseId: string, excludeWorkoutId: string)
       : online.getExerciseHistory(exerciseId, excludeWorkoutId)
   );
 
+// ─── RPG items / equipment ───────────────────────────────────────────────────
+
+export const getRpgItems = () =>
+  route(() => (isOfflineMode() ? offline.getRpgItems() : online.getRpgItems()));
+
+export const getRpgEquipment = () =>
+  route(() => (isOfflineMode() ? offline.getRpgEquipment() : online.getRpgEquipment()));
+
+export const equipRpgItem = (input: { slot: string; item_id: string }) =>
+  route(() => (isOfflineMode() ? offline.equipRpgItem(input) : online.equipRpgItem(input)));
+
+export const unequipRpgItem = (slot: string) =>
+  route(() => (isOfflineMode() ? offline.unequipRpgItem(slot) : online.unequipRpgItem(slot)));
+
 // ─── Re-export shared utils from api.ts ──────────────────────────────────────
 
 export { formatSetText, generateWorkoutSummary } from '@/lib/api';

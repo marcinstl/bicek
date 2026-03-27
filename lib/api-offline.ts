@@ -12,6 +12,9 @@ import type {
   CreateExerciseInput,
   UpdateExerciseInput,
   AddSetInput,
+  RpgItem,
+  RpgEquipmentRow,
+  RpgEquipmentWithItem,
 } from '@/lib/types';
 
 // ─── Plans ───────────────────────────────────────────────────────────────────
@@ -174,6 +177,59 @@ export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
     result.push({ ...w, plans: { name: plan?.name ?? 'Unknown' } });
   }
   return result;
+}
+
+// ─── RPG items / equipment (offline fallback) ───────────────────────────────
+
+export async function getRpgItems(): Promise<RpgItem[]> {
+  const db = await getDb();
+  const rows = await db.getAll('rpg_items');
+  rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return rows;
+}
+
+export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
+  const db = await getDb();
+  const rows = await db.getAll('rpg_equipment');
+  const result: RpgEquipmentWithItem[] = [];
+  for (const row of rows) {
+    const item = await db.get('rpg_items', row.item_id);
+    if (!item) continue;
+    result.push({ ...row, item });
+  }
+  return result;
+}
+
+export async function equipRpgItem(input: { slot: string; item_id: string }): Promise<RpgEquipmentRow> {
+  const db = await getDb();
+  const existingRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
+  const existing = existingRows.find((row) => row.slot === input.slot);
+  const now = new Date().toISOString();
+  const row: RpgEquipmentRow = existing
+    ? {
+        ...existing,
+        item_id: input.item_id,
+        equipped_at: now,
+        updated_at: now,
+      }
+    : {
+        id: randomId(),
+        user_id: OFFLINE_USER_ID,
+        slot: input.slot,
+        item_id: input.item_id,
+        equipped_at: now,
+        updated_at: now,
+      };
+  await db.put('rpg_equipment', row);
+  return row;
+}
+
+export async function unequipRpgItem(slot: string): Promise<void> {
+  const db = await getDb();
+  const existingRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
+  const existing = existingRows.find((row) => row.slot === slot);
+  if (!existing) return;
+  await db.delete('rpg_equipment', existing.id);
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

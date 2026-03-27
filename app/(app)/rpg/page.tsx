@@ -4,9 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
+import {
+  useEquipRpgItem,
+  useRpgEquipment,
+  useRpgItems,
+  useUnequipRpgItem,
+} from '@/hooks/useRpgEquipment';
+import { isOfflineMode } from '@/lib/api-router';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
-import { PIXEL_ART_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type { ExerciseKind } from '@/lib/types';
 import { getExerciseKindTitle } from '@/lib/exercise-stats';
 
@@ -50,6 +56,7 @@ const EQUIPMENT_SLOTS = [
 type EquipmentSlotId = (typeof EQUIPMENT_SLOTS)[number]['id'];
 type EquippedBySlot = Partial<Record<EquipmentSlotId, string>>;
 const EQUIPMENT_STORAGE_KEY = 'rpg-equipment-v1';
+const EQUIPMENT_MIGRATION_KEY = 'rpg-equipment-migrated-v1';
 
 function formatEventDate(iso: string): string {
   const d = new Date(iso);
@@ -62,11 +69,18 @@ function formatEventDate(iso: string): string {
 }
 
 export default function RpgPage() {
+  const offline = isOfflineMode();
   const { data: history = [], isLoading: historyLoading } = useWorkoutHistory();
   const workoutIds = useMemo(() => history.map((w) => w.id), [history]);
   const { data: sets = [], isLoading: setsLoading } = useSetsForWorkouts(workoutIds, workoutIds.length > 0);
-  const [equippedBySlot, setEquippedBySlot] = useState<EquippedBySlot>({});
+  const { data: items = [], isLoading: itemsLoading } = useRpgItems();
+  const { data: equipmentRows = [], isLoading: equipmentLoading } = useRpgEquipment();
+  const equipMutation = useEquipRpgItem();
+  const unequipMutation = useUnequipRpgItem();
+
+  const [localEquippedBySlot, setLocalEquippedBySlot] = useState<EquippedBySlot>({});
   const [equipmentHydrated, setEquipmentHydrated] = useState(false);
+  const [migrationAttempted, setMigrationAttempted] = useState(false);
   const [showTotalExp, setShowTotalExp] = useState(true);
 
   useEffect(() => {
@@ -74,7 +88,7 @@ export default function RpgPage() {
       const raw = window.localStorage.getItem(EQUIPMENT_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as EquippedBySlot;
-        setEquippedBySlot(parsed);
+        setLocalEquippedBySlot(parsed);
       }
     } catch {
       // Ignore malformed localStorage data.
@@ -83,20 +97,91 @@ export default function RpgPage() {
     }
   }, []);
 
+  const itemByCode = useMemo(() => {
+    return new Map(items.map((item) => [item.code, item] as const));
+  }, [items]);
+
+  const remoteEquippedBySlot = useMemo<EquippedBySlot>(() => {
+    const mapped: EquippedBySlot = {};
+    for (const row of equipmentRows) {
+      const slot = row.slot as EquipmentSlotId;
+      if (!EQUIPMENT_SLOTS.some((s) => s.id === slot)) continue;
+      mapped[slot] = row.item?.code;
+    }
+    return mapped;
+  }, [equipmentRows]);
+
+  const hasRemoteEquipment = useMemo(
+    () => Object.values(remoteEquippedBySlot).some((code) => typeof code === 'string' && code.length > 0),
+    [remoteEquippedBySlot]
+  );
+
+  const equippedBySlot = hasRemoteEquipment ? remoteEquippedBySlot : localEquippedBySlot;
+
   useEffect(() => {
     if (!equipmentHydrated) return;
-    window.localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(equippedBySlot));
-  }, [equippedBySlot, equipmentHydrated]);
+    window.localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(localEquippedBySlot));
+  }, [localEquippedBySlot, equipmentHydrated]);
+
+  useEffect(() => {
+    if (offline) return;
+    if (!equipmentHydrated) return;
+    if (items.length === 0) return;
+    if (hasRemoteEquipment) return;
+    if (migrationAttempted) return;
+    if (window.localStorage.getItem(EQUIPMENT_MIGRATION_KEY) === 'true') return;
+
+    const localEntries = Object.entries(localEquippedBySlot).filter(
+      (entry): entry is [EquipmentSlotId, string] => typeof entry[1] === 'string' && entry[1].length > 0
+    );
+    if (localEntries.length === 0) {
+      setMigrationAttempted(true);
+      return;
+    }
+
+    setMigrationAttempted(true);
+    void (async () => {
+      for (const [slot, fileName] of localEntries) {
+        const item = itemByCode.get(fileName);
+        if (!item) continue;
+        if (item.eq_slot !== slot) continue;
+        await equipMutation.mutateAsync({ slot, item_id: item.id });
+      }
+      window.localStorage.setItem(EQUIPMENT_MIGRATION_KEY, 'true');
+    })();
+  }, [
+    equipMutation,
+    equipmentHydrated,
+    hasRemoteEquipment,
+    itemByCode,
+    items.length,
+    localEquippedBySlot,
+    migrationAttempted,
+    offline,
+  ]);
 
   const handleEquipItem = (fileName: string, eqSlot: EquipmentSlotId) => {
-    setEquippedBySlot((prev) => {
-      if (prev[eqSlot] === fileName) {
-        const next = { ...prev };
-        delete next[eqSlot];
-        return next;
-      }
-      return { ...prev, [eqSlot]: fileName };
-    });
+    if (offline) {
+      setLocalEquippedBySlot((prev) => {
+        if (prev[eqSlot] === fileName) {
+          const next = { ...prev };
+          delete next[eqSlot];
+          return next;
+        }
+        return { ...prev, [eqSlot]: fileName };
+      });
+      return;
+    }
+
+    const item = itemByCode.get(fileName);
+    if (!item || item.eq_slot !== eqSlot) return;
+
+    const currentCode = equippedBySlot[eqSlot];
+    if (currentCode === fileName) {
+      void unequipMutation.mutateAsync(eqSlot);
+      return;
+    }
+    void equipMutation.mutateAsync({ slot: eqSlot, item_id: item.id });
   };
 
   const totalXp = useMemo(() => {
@@ -122,7 +207,11 @@ export default function RpgPage() {
 
 
   const progress = getLevelProgress(totalXp);
-  const loading = historyLoading || (workoutIds.length > 0 && setsLoading);
+  const loading =
+    historyLoading ||
+    (workoutIds.length > 0 && setsLoading) ||
+    itemsLoading ||
+    equipmentLoading;
   const events = useMemo<RpgEvent[]>(() => {
     if (loading) return [];
 
@@ -253,15 +342,20 @@ export default function RpgPage() {
                   className="flex h-14 w-14 items-center justify-center rounded-md border border-gray-300 bg-gray-50"
                   style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
                 >
-                  {equippedBySlot[slot.id] ? (
-                    <Image
-                      src={`/pixelart/${equippedBySlot[slot.id]}`}
-                      alt={equippedBySlot[slot.id] ?? slot.id}
-                      width={48}
-                      height={48}
-                      className="h-12 w-12 pixel-art"
-                    />
-                  ) : null}
+                  {equippedBySlot[slot.id] ? (() => {
+                    const code = equippedBySlot[slot.id]!;
+                    const item = itemByCode.get(code);
+                    const src = item ? `/pixelart/${item.code}` : `/pixelart/${code}`;
+                    return (
+                      <Image
+                        src={src}
+                        alt={item?.name ?? code}
+                        width={48}
+                        height={48}
+                        className="h-12 w-12 pixel-art"
+                      />
+                    );
+                  })() : null}
                 </div>
 
               ))}
@@ -310,20 +404,21 @@ export default function RpgPage() {
       <section className="mt-4 rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-900">Pixel Art Items</h3>
         <div className="mt-3 flex flex-wrap gap-2">
-          {PIXEL_ART_ITEMS.map((item) => {
-            const isEquipped = equippedBySlot[item.eqSlot] === item.fileName;
+          {items.map((item) => {
+            const isEquipped = equippedBySlot[item.eq_slot as EquipmentSlotId] === item.code;
+            const src = `/pixelart/${item.code}`;
             return (
             <button
-              key={item.fileName}
+              key={item.id}
               type="button"
-              onClick={() => handleEquipItem(item.fileName, item.eqSlot)}
+              onClick={() => handleEquipItem(item.code, item.eq_slot as EquipmentSlotId)}
               className={`flex h-14 w-14 items-center justify-center rounded-md border bg-gray-50 transition-colors ${
                 isEquipped ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'
               }`}
-              title={`${item.name} | ${item.type} | ${item.eqSlot}`}
+              title={`${item.name} | ${item.type} | ${item.eq_slot}`}
             >
               <Image
-                src={`/pixelart/${item.fileName}`}
+                src={src}
                 alt={item.name}
                 width={48}
                 height={48}

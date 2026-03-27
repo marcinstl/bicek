@@ -1,4 +1,10 @@
 import { createClient } from '@/lib/supabase';
+import {
+  mirrorDeleteRpgEquipmentBySlot,
+  mirrorRpgEquipment,
+  mirrorRpgItems,
+  mirrorUpsertRpgEquipment,
+} from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
 import type {
   Plan,
@@ -13,6 +19,9 @@ import type {
   CreateExerciseInput,
   UpdateExerciseInput,
   AddSetInput,
+  RpgItem,
+  RpgEquipmentRow,
+  RpgEquipmentWithItem,
 } from '@/lib/types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -230,6 +239,76 @@ export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
     .order('started_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as WorkoutWithPlan[];
+}
+
+// ─── RPG items / equipment ───────────────────────────────────────────────────
+
+export async function getRpgItems(): Promise<RpgItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('rpg_items')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  const items = (data ?? []) as RpgItem[];
+  await mirrorRpgItems(items);
+  return items;
+}
+
+export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('rpg_equipment')
+    .select('*, item:rpg_items(*)')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as RpgEquipmentWithItem[];
+  await mirrorRpgEquipment(rows.map((entry) => {
+    const { item, ...row } = entry;
+    void item;
+    return row;
+  }));
+  return rows;
+}
+
+export async function equipRpgItem(input: { slot: string; item_id: string }): Promise<RpgEquipmentRow> {
+  const supabase = createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('rpg_equipment')
+    .upsert(
+      {
+        user_id: userData.user.id,
+        slot: input.slot,
+        item_id: input.item_id,
+        equipped_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,slot' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const row = data as RpgEquipmentRow;
+  await mirrorUpsertRpgEquipment(row);
+  return row;
+}
+
+export async function unequipRpgItem(slot: string): Promise<void> {
+  const supabase = createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('rpg_equipment')
+    .delete()
+    .eq('user_id', userData.user.id)
+    .eq('slot', slot);
+  if (error) throw error;
+  await mirrorDeleteRpgEquipmentBySlot(userData.user.id, slot);
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────
