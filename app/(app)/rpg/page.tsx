@@ -2,17 +2,20 @@
 
 import { useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
+import { PIXEL_ART_ICONS } from '@/lib/rpg/pixelart-icons';
 import type { ExerciseKind } from '@/lib/types';
+import { getExerciseKindTitle } from '@/lib/exercise-stats';
 
 type RpgEvent = {
   key: string;
+  workoutId: string;
   timestamp: string;
   workoutTimeMs: number;
   title: string;
-  details: string;
   levelUpLabel: string | null;
 };
 
@@ -23,63 +26,25 @@ const KIND_ORDER: ExerciseKind[] = [
   'distance_per_time',
 ];
 
-const PIXEL_ART_ICONS = [
-  'Iicon_32_01.png',
-  'Iicon_32_02.png',
-  'Iicon_32_03.png',
-  'Iicon_32_04.png',
-  'Iicon_32_05.png',
-  'Iicon_32_06.png',
-  'Iicon_32_07.png',
-  'Iicon_32_08.png',
-  'Iicon_32_09.png',
-  'Iicon_32_10.png',
-  'Iicon_32_11.png',
-  'Iicon_32_12.png',
-  'Iicon_32_13.png',
-  'Iicon_32_14.png',
-  'Iicon_32_15.png',
-  'Iicon_32_16.png',
-  'Iicon_32_17.png',
-  'Iicon_32_18.png',
-  'Iicon_32_19.png',
-  'Iicon_32_20.png',
-  'Iicon_32_21.png',
-  'Iicon_32_22.png',
-  'Iicon_32_23.png',
-  'Iicon_32_24.png',
-  'Iicon_32_25.png',
-  'Iicon_32_26.png',
-  'Iicon_32_27.png',
-  'Iicon_32_28.png',
-  'Iicon_32_29.png',
-  'Iicon_32_30.png',
-  'Iicon_32_31.png',
-  'Iicon_32_32.png',
-  'Iicon_32_33.png',
-  'Iicon_32_34.png',
-  'Iicon_32_35.png',
-  'Iicon_32_36.png',
-  'Iicon_32_37.png',
-  'Iicon_32_38.png',
-  'Iicon_32_39.png',
-  'Iicon_32_40.png',
-];
+const KIND_BAR_FILL_CLASS: Record<ExerciseKind, string> = {
+  weighted_reps: 'bg-orange-500',
+  bodyweight_reps: 'bg-violet-500',
+  time_based: 'bg-sky-500',
+  distance_per_time: 'bg-rose-500',
+};
 
-function kindLabel(kind: ExerciseKind): string {
-  switch (kind) {
-    case 'weighted_reps':
-      return 'weighted reps';
-    case 'bodyweight_reps':
-      return 'bodyweight reps';
-    case 'time_based':
-      return 'time based';
-    case 'distance_per_time':
-      return 'distance per time';
-    default:
-      return kind;
-  }
-}
+const EQUIPMENT_SLOTS = [
+  { id: 'slot-coin', row: 1, col: 1 },
+  { id: 'slot-head', row: 1, col: 2 },
+  { id: 'slot-armor', row: 1, col: 3 },
+  { id: 'slot-weapon', row: 2, col: 1 },
+  { id: 'slot-chest', row: 2, col: 2 },
+  { id: 'slot-shield', row: 2, col: 3 },
+  { id: 'slot-ring', row: 3, col: 1 },
+  { id: 'slot-legs', row: 3, col: 2 },
+  { id: 'slot-tool', row: 3, col: 3 },
+  { id: 'slot-boots', row: 4, col: 2 },
+] as const;
 
 function formatEventDate(iso: string): string {
   const d = new Date(iso);
@@ -102,6 +67,21 @@ export default function RpgPage() {
       return sum + computeSetXp(set.exercises.kind, set);
     }, 0);
   }, [sets]);
+
+  const kindTotals = useMemo(() => {
+    const totals: Record<ExerciseKind, number> = {
+      weighted_reps: 0,
+      bodyweight_reps: 0,
+      time_based: 0,
+      distance_per_time: 0,
+    };
+    for (const set of sets) {
+      const xp = set.xp ?? computeSetXp(set.exercises.kind, set);
+      totals[set.exercises.kind] += xp;
+    }
+    return totals;
+  }, [sets]);
+
 
   const progress = getLevelProgress(totalXp);
   const loading = historyLoading || (workoutIds.length > 0 && setsLoading);
@@ -142,11 +122,6 @@ export default function RpgPage() {
       cumulativeXp -= workoutXp;
       const beforeLevel = getLevelProgress(Math.max(0, cumulativeXp)).level;
 
-      const breakdown = KIND_ORDER
-        .filter((kind) => byKind[kind] > 0)
-        .map((kind) => `${kindLabel(kind)}: ${byKind[kind]} XP`)
-        .join(' • ');
-
       const workoutTimestamp = workout.ended_at ?? workout.started_at;
       const workoutTimeMs = new Date(workoutTimestamp).getTime();
 
@@ -154,10 +129,10 @@ export default function RpgPage() {
 
       workoutEvents.push({
         key: `workout-${workout.id}`,
+        workoutId: workout.id,
         timestamp: workoutTimestamp,
         workoutTimeMs,
         title: `Workout completed (+${workoutXp} XP)`,
-        details: breakdown || 'No XP breakdown available',
         levelUpLabel,
       });
     }
@@ -176,30 +151,72 @@ export default function RpgPage() {
         <h1 className="text-2xl font-bold text-gray-900">RPG & Gamification</h1>
       </div>
       
-      <div className="rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-6 flex flex-col items-center justify-center text-center">
-        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4">
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900">Poziom {progress.level}</h2>
-        <div className="w-full max-w-xs mt-4">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{progress.currentLevelXp} XP</span>
-            <span>{progress.nextLevelXp} XP</span>
+      <div className="rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-6">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">Poziom {progress.level}</h2>
+            </div>
+
+            <div className="mt-4 w-full max-w-sm">
+              <div className="mb-1 flex justify-between text-xs text-gray-500">
+                <span>{progress.currentLevelXp} XP</span>
+                <span>{progress.nextLevelXp} XP</span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-gray-100">
+                <div className="h-2.5 rounded-full bg-emerald-500" style={{ width: `${progress.progressPct}%` }} />
+              </div>
+              <div className="mt-3 text-left">
+                {loading ? (
+                  <p className="text-xs text-gray-400">Liczenie XP...</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500">Total: {progress.totalXp} XP</p>
+                    <p className="mt-1 text-xs text-gray-400">Potrzebny XP: {progress.xpToNextLevel}</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 max-w-sm space-y-2">
+              {KIND_ORDER.map((kind) => {
+                const xp = kindTotals[kind];
+                const { level, progressPct: pct } = getLevelProgress(xp);
+                return (
+                  <div key={kind}>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-xs font-medium text-gray-700">{getExerciseKindTitle(kind)}</span>
+                      <span className="text-xs text-gray-500">Lv. {level}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100">
+                      <div
+                        className={`h-2 rounded-full ${KIND_BAR_FILL_CLASS[kind]}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
-            <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: `${progress.progressPct}%` }} />
-          </div>
-          <div className="mt-3 text-left">
-            {loading ? (
-              <p className="text-xs text-gray-400">Liczenie XP...</p>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500">Total: {progress.totalXp} XP</p>
-                <p className="text-xs text-gray-400 mt-1">Potrzebny XP: {progress.xpToNextLevel}</p>
-              </>
-            )}
+
+          <div className="rounded-xl border border-gray-300/80 bg-slate-900/5 p-3 flex flex-col items-center">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 self-start">Equipment</p>
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(3, 56px)', gridTemplateRows: 'repeat(4, 56px)' }}>
+              {EQUIPMENT_SLOTS.map((slot) => (
+                <div
+                  key={slot.id}
+                  className="flex h-14 w-14 items-center justify-center rounded-md border border-gray-300 bg-gray-50"
+                  style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
+                />
+
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -213,26 +230,27 @@ export default function RpgPage() {
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {events.map((event) => (
-              <li
-                key={event.key}
-                className="rounded-xl border border-gray-200/80 bg-white px-3 py-2 flex items-start gap-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{event.title}</p>
-                  <p className="mt-0.5 text-xs text-gray-600">{event.details}</p>
-                  <p className="mt-1 text-[11px] text-gray-400">{formatEventDate(event.timestamp)}</p>
-                </div>
-                <div className="shrink-0">
-                  {event.levelUpLabel ? (
-                    <span className="inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                      {event.levelUpLabel}
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-400">
-                      -
-                    </span>
-                  )}
-                </div>
+              <li key={event.key}>
+                <Link
+                  href={`/rpg/workout/${event.workoutId}`}
+                  className="rounded-xl border border-gray-200/80 bg-white px-3 py-2 flex items-start gap-3 transition-colors hover:border-emerald-200 hover:bg-emerald-50/30"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                    <p className="mt-1 text-[11px] text-gray-400">{formatEventDate(event.timestamp)}</p>
+                  </div>
+                  <div className="shrink-0">
+                    {event.levelUpLabel ? (
+                      <span className="inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                        {event.levelUpLabel}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-400">
+                        -
+                      </span>
+                    )}
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>

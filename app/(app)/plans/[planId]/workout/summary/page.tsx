@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWorkout, useWorkoutSets, useDeleteWorkout } from '@/hooks/useWorkout';
@@ -60,6 +60,18 @@ export default function WorkoutSummaryPage({ params }: Props) {
   const loggedExercises = exercises.filter((ex) => sets.some((s) => s.exercise_id === ex.id));
 
   const totals = getKindTotals(loggedExercises, sets as SetWithExercise[]);
+  const setGapById = useMemo(() => {
+    const ordered = [...(sets as SetWithExercise[])].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const map = new Map<string, number>();
+    let previousMs = new Date(workout.started_at).getTime();
+    for (const set of ordered) {
+      const currentMs = new Date(set.created_at).getTime();
+      const delta = Math.max(0, Math.round((currentMs - previousMs) / 1000));
+      map.set(set.id, delta);
+      previousMs = currentMs;
+    }
+    return map;
+  }, [sets, workout.started_at]);
 
   return (
     <div>
@@ -126,7 +138,12 @@ export default function WorkoutSummaryPage({ params }: Props) {
                   {exSets.map((s, i) => (
                     <li key={s.id} className="flex items-center gap-2 text-sm text-gray-700">
                       <span className="text-gray-400 text-xs w-5 text-right">{i + 1}.</span>
-                      {formatSetText(s, ex)}
+                      <span>{formatSetText(s, ex)}</span>
+                      {setGapById.has(s.id) && (
+                        <span className="text-[11px] text-gray-400">
+                          +{formatDuration(setGapById.get(s.id) ?? 0)} od poprzedniego wpisu
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

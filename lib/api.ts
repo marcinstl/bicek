@@ -397,6 +397,7 @@ export function generateWorkoutSummary(
   const endStr = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
 
   let summary = `Date: ${dateStr}\nStart: ${startStr}\nEnd: ${endStr}\nDuration: ${durationMin} min\n`;
+  const setGapById = buildSetGapById(workout, sets);
 
   for (const exercise of exercises) {
     const exerciseSets = sets.filter((s) => s.exercise_id === exercise.id);
@@ -404,12 +405,33 @@ export function generateWorkoutSummary(
 
     summary += `\n${exercise.name}:\n`;
     for (const s of exerciseSets) {
-      summary += `* ${formatSetText(s, exercise)}\n`;
+      const gapSec = setGapById.get(s.id);
+      const gapText =
+        gapSec != null ? ` (+${formatTime(gapSec)} since previous log)` : '';
+      summary += `* ${formatSetText(s, exercise)}${gapText}\n`;
     }
     summary += `${formatExerciseTotal(exercise, exerciseSets)}\n`;
   }
 
   return summary.trim();
+}
+
+function buildSetGapById(
+  workout: Pick<Workout, 'started_at'>,
+  sets: Array<Pick<SetWithExercise, 'id' | 'created_at'>>
+): Map<string, number> {
+  const ordered = [...sets].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const gaps = new Map<string, number>();
+  let previousMs = new Date(workout.started_at).getTime();
+
+  for (const set of ordered) {
+    const currentMs = new Date(set.created_at).getTime();
+    const delta = Math.max(0, Math.round((currentMs - previousMs) / 1000));
+    gaps.set(set.id, delta);
+    previousMs = currentMs;
+  }
+
+  return gaps;
 }
 
 function formatExerciseTotal(exercise: Exercise, exerciseSets: SetWithExercise[]): string {
