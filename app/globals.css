@@ -100,3 +100,9 @@ input[type='number']::-webkit-outer-spin-button {
 input[type='number'] {
   -moz-appearance: textfield;
 }
+
+/* Keep hard edges when scaling pixel art assets */
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
