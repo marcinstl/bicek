@@ -95,7 +95,7 @@ export default function RpgWorkoutPage({ params }: Props) {
                         <span className={exerciseKindTagClassName(set.exercises.kind)}>
                           {getExerciseKindTitle(set.exercises.kind)}
                         </span>
-                        <span className="text-xs text-gray-600">
+                        <span className="basis-full text-xs text-gray-600">
                           {formatSetText(set, { kind: set.exercises.kind })}
                         </span>
                       </div>
