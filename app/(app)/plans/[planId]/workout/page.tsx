@@ -34,7 +34,7 @@ export default function WorkoutPage({ params }: Props) {
   const handleFinish = useCallback(async () => {
     await finishWorkout.mutateAsync(workoutId);
     invalidateActiveWorkout();
-    router.push(`/plans/${planId}/workout/summary?workoutId=${workoutId}`);
+    router.push(`/history/${workoutId}`);
   }, [finishWorkout, workoutId, planId, router, invalidateActiveWorkout]);
 
   if (workoutLoading || !workout) return <PageSpinner />;

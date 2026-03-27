@@ -56,7 +56,7 @@ export default function HistoryPage() {
             return (
               <li key={w.id}>
                 <Link
-                  href={`/plans/${w.plan_id}/workout/summary?workoutId=${w.id}`}
+                  href={`/history/${w.id}`}
                   className="block bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 hover:border-emerald-200 hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between gap-3">
