@@ -1,25 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { rowsToRequirements } from '@/lib/rpg/requirements';
 import type { RpgRequirement } from '@/lib/types';
 
-type RawRequirement = {
-  type: string;
-  level?: number;
-  kind?: string;
-  xp?: number;
-  count?: number;
-  secret?: boolean;
-};
-
-function sanitizeRequirements(raw: unknown): RpgRequirement[] {
-  if (!Array.isArray(raw)) return [];
-  return (raw as RawRequirement[]).map((req) => {
-    if (req.secret) {
-      return { type: 'secret' } satisfies RpgRequirement;
-    }
-    const { secret: _s, ...rest } = req;
-    return rest as RpgRequirement;
-  });
+function sanitizeRequirements(reqs: RpgRequirement[]): RpgRequirement[] {
+  return reqs.map((req) =>
+    'secret' in req && req.secret ? ({ type: 'secret' } satisfies RpgRequirement) : req
+  );
 }
 
 export async function GET() {
@@ -32,7 +19,7 @@ export async function GET() {
   const [itemsResult, discoveriesResult] = await Promise.all([
     supabase
       .from('rpg_items')
-      .select('id,eq_slot,icon_path,name,type,requirements')
+      .select('id,eq_slot,icon_path,name,type,rpg_item_requirements(type,level,kind,xp,count,secret)')
       .order('created_at', { ascending: true }),
     supabase
       .from('rpg_item_discoveries')
@@ -46,13 +33,16 @@ export async function GET() {
 
   const items = (itemsResult.data ?? []).map((item) => {
     const isDiscovered = discoveredIds.has(item.id);
+    const reqs = rowsToRequirements(
+      Array.isArray(item.rpg_item_requirements) ? item.rpg_item_requirements : []
+    );
     return {
       id: item.id,
       eq_slot: item.eq_slot,
       icon_path: item.icon_path,
       name: isDiscovered ? item.name : null,
       item_type: isDiscovered ? item.type : null,
-      requirements: sanitizeRequirements(item.requirements),
+      requirements: sanitizeRequirements(reqs),
     };
   });
 

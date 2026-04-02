@@ -320,7 +320,11 @@ export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
 
 export async function tryDiscoverItems(): Promise<string[]> {
   const res = await fetch('/api/rpg/discover', { method: 'POST' });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.error('[tryDiscoverItems] error', res.status, body);
+    return [];
+  }
   const json = (await res.json()) as { newly_discovered?: string[] };
   return json.newly_discovered ?? [];
 }

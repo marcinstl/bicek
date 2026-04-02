@@ -109,6 +109,7 @@ export default function RpgPage() {
     void tryDiscoverItems().then((newIds) => {
       if (newIds.length > 0) {
         void queryClient.invalidateQueries({ queryKey: rpgKeys.discoveries() });
+        void queryClient.invalidateQueries({ queryKey: rpgKeys.items() });
       }
     });
   }, [dataReady, queryClient]);

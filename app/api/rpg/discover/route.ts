@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server';
-import { checkRequirements } from '@/lib/rpg/requirements';
+import { checkRequirements, rowsToRequirements } from '@/lib/rpg/requirements';
 import { computeSetXp } from '@/lib/rpg/xp';
-import type { ExerciseKind, RpgDiscoveredItem } from '@/lib/types';
+import type { ExerciseKind } from '@/lib/types';
 
 type SetRow = {
   xp: number | null;
@@ -63,7 +63,9 @@ export async function POST() {
   // ── 2. Undiscovered items ────────────────────────────────────────────────
 
   const [itemsResult, discoveriesResult] = await Promise.all([
-    supabase.from('rpg_items').select('id,eq_slot,icon_path,requirements'),
+    supabase
+      .from('rpg_items')
+      .select('id, rpg_item_requirements(type,level,kind,xp,count,secret)'),
     supabase.from('rpg_item_discoveries').select('item_id').eq('user_id', user.id),
   ]);
 
@@ -71,18 +73,24 @@ export async function POST() {
   if (discoveriesResult.error) return NextResponse.json({ error: discoveriesResult.error.message }, { status: 500 });
 
   const discoveredIds = new Set((discoveriesResult.data ?? []).map((d) => d.item_id));
-  const undiscovered = (itemsResult.data ?? [] as RpgDiscoveredItem[]).filter(
-    (item) => !discoveredIds.has(item.id)
-  );
+  const undiscovered = (itemsResult.data ?? []).filter((item) => !discoveredIds.has(item.id));
 
   // ── 3. Check & insert qualifying items ──────────────────────────────────
 
-  const eligible = undiscovered.filter((item) =>
-    checkRequirements((item as RpgDiscoveredItem).requirements, context)
-  );
+  const eligible = undiscovered.filter((item) => {
+    const reqs = rowsToRequirements(
+      Array.isArray(item.rpg_item_requirements) ? item.rpg_item_requirements : []
+    );
+    return checkRequirements(reqs, context);
+  });
 
   if (eligible.length === 0) {
     return NextResponse.json({ newly_discovered: [] });
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[rpg/discover] SUPABASE_SERVICE_ROLE_KEY is not set');
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
   const admin = createAdminSupabaseClient();
@@ -91,7 +99,10 @@ export async function POST() {
     { onConflict: 'user_id,item_id' }
   );
 
-  if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+  if (insertError) {
+    console.error('[rpg/discover] insert error:', insertError.message);
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ newly_discovered: eligible.map((i) => i.id) });
 }
