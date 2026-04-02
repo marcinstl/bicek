@@ -19,7 +19,8 @@ import type {
   CreateExerciseInput,
   UpdateExerciseInput,
   AddSetInput,
-  RpgItem,
+  RpgDiscoveredItem,
+  RpgItemDiscoveryRow,
   RpgEquipmentRow,
   RpgEquipmentWithItem,
 } from '@/lib/types';
@@ -243,14 +244,14 @@ export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
 
 // ─── RPG items / equipment ───────────────────────────────────────────────────
 
-export async function getRpgItems(): Promise<RpgItem[]> {
+export async function getRpgItems(): Promise<RpgDiscoveredItem[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('rpg_items')
-    .select('*')
+    .select('id,eq_slot,icon_path')
     .order('created_at', { ascending: true });
   if (error) throw error;
-  const items = (data ?? []) as RpgItem[];
+  const items = (data ?? []) as RpgDiscoveredItem[];
   await mirrorRpgItems(items);
   return items;
 }
@@ -259,7 +260,7 @@ export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('rpg_equipment')
-    .select('*, item:rpg_items(*)')
+    .select('*, item:rpg_items(id,eq_slot,icon_path)')
     .order('updated_at', { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as RpgEquipmentWithItem[];
@@ -276,6 +277,8 @@ export async function equipRpgItem(input: { slot: string; item_id: string }): Pr
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('Not authenticated');
+
+  await discoverItem(input.item_id);
 
   const { data, error } = await supabase
     .from('rpg_equipment')
@@ -309,6 +312,37 @@ export async function unequipRpgItem(slot: string): Promise<void> {
     .eq('slot', slot);
   if (error) throw error;
   await mirrorDeleteRpgEquipmentBySlot(userData.user.id, slot);
+}
+
+export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('rpg_item_discoveries')
+    .select('*')
+    .order('discovered_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as RpgItemDiscoveryRow[];
+}
+
+export async function discoverItem(itemId: string): Promise<RpgItemDiscoveryRow> {
+  const supabase = createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('rpg_item_discoveries')
+    .upsert(
+      {
+        user_id: userData.user.id,
+        item_id: itemId,
+      },
+      { onConflict: 'user_id,item_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data as RpgItemDiscoveryRow;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

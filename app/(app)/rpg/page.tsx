@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import {
   useEquipRpgItem,
+  useRpgDiscoveries,
   useRpgEquipment,
   useRpgItems,
   useUnequipRpgItem,
@@ -74,6 +75,7 @@ export default function RpgPage() {
   const workoutIds = useMemo(() => history.map((w) => w.id), [history]);
   const { data: sets = [], isLoading: setsLoading } = useSetsForWorkouts(workoutIds, workoutIds.length > 0);
   const { data: items = [], isLoading: itemsLoading } = useRpgItems();
+  const { data: discoveries = [], isLoading: discoveriesLoading } = useRpgDiscoveries();
   const { data: equipmentRows = [], isLoading: equipmentLoading } = useRpgEquipment();
   const equipMutation = useEquipRpgItem();
   const unequipMutation = useUnequipRpgItem();
@@ -97,8 +99,18 @@ export default function RpgPage() {
     }
   }, []);
 
-  const itemByCode = useMemo(() => {
-    return new Map(items.map((item) => [item.code, item] as const));
+  const itemById = useMemo(() => {
+    return new Map(items.map((item) => [item.id, item] as const));
+  }, [items]);
+  const discoveredItemIds = useMemo(() => new Set(discoveries.map((d) => d.item_id)), [discoveries]);
+
+  const itemIdByFileName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of items) {
+      const fileName = item.icon_path.split('/').pop();
+      if (fileName) map.set(fileName, item.id);
+    }
+    return map;
   }, [items]);
 
   const remoteEquippedBySlot = useMemo<EquippedBySlot>(() => {
@@ -106,7 +118,7 @@ export default function RpgPage() {
     for (const row of equipmentRows) {
       const slot = row.slot as EquipmentSlotId;
       if (!EQUIPMENT_SLOTS.some((s) => s.id === slot)) continue;
-      mapped[slot] = row.item?.code;
+      mapped[slot] = row.item?.id;
     }
     return mapped;
   }, [equipmentRows]);
@@ -142,10 +154,12 @@ export default function RpgPage() {
     setMigrationAttempted(true);
     void (async () => {
       for (const [slot, fileName] of localEntries) {
-        const item = itemByCode.get(fileName);
+        const itemId = itemIdByFileName.get(fileName);
+        if (!itemId) continue;
+        const item = itemById.get(itemId);
         if (!item) continue;
         if (item.eq_slot !== slot) continue;
-        await equipMutation.mutateAsync({ slot, item_id: item.id });
+        await equipMutation.mutateAsync({ slot, item_id: itemId });
       }
       window.localStorage.setItem(EQUIPMENT_MIGRATION_KEY, 'true');
     })();
@@ -153,35 +167,38 @@ export default function RpgPage() {
     equipMutation,
     equipmentHydrated,
     hasRemoteEquipment,
-    itemByCode,
+    itemById,
+    itemIdByFileName,
     items.length,
     localEquippedBySlot,
     migrationAttempted,
     offline,
   ]);
 
-  const handleEquipItem = (fileName: string, eqSlot: EquipmentSlotId) => {
+  const handleEquipItem = (itemId: string, eqSlot: EquipmentSlotId) => {
+    if (!discoveredItemIds.has(itemId)) return;
+
     if (offline) {
       setLocalEquippedBySlot((prev) => {
-        if (prev[eqSlot] === fileName) {
+        if (prev[eqSlot] === itemId) {
           const next = { ...prev };
           delete next[eqSlot];
           return next;
         }
-        return { ...prev, [eqSlot]: fileName };
+        return { ...prev, [eqSlot]: itemId };
       });
       return;
     }
 
-    const item = itemByCode.get(fileName);
+    const item = itemById.get(itemId);
     if (!item || item.eq_slot !== eqSlot) return;
 
     const currentCode = equippedBySlot[eqSlot];
-    if (currentCode === fileName) {
+    if (currentCode === itemId) {
       void unequipMutation.mutateAsync(eqSlot);
       return;
     }
-    void equipMutation.mutateAsync({ slot: eqSlot, item_id: item.id });
+    void equipMutation.mutateAsync({ slot: eqSlot, item_id: itemId });
   };
 
   const totalXp = useMemo(() => {
@@ -211,6 +228,7 @@ export default function RpgPage() {
     historyLoading ||
     (workoutIds.length > 0 && setsLoading) ||
     itemsLoading ||
+    discoveriesLoading ||
     equipmentLoading;
   const events = useMemo<RpgEvent[]>(() => {
     if (loading) return [];
@@ -343,13 +361,14 @@ export default function RpgPage() {
                   style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
                 >
                   {equippedBySlot[slot.id] ? (() => {
-                    const code = equippedBySlot[slot.id]!;
-                    const item = itemByCode.get(code);
-                    const src = item ? `/pixelart/${item.code}` : `/pixelart/${code}`;
+                    const itemId = equippedBySlot[slot.id]!;
+                    const item = itemById.get(itemId);
+                    const src = item ? `/${item.icon_path}` : '';
+                    if (!src) return null;
                     return (
                       <Image
                         src={src}
-                        alt={item?.name ?? code}
+                        alt={item?.id ?? itemId}
                         width={48}
                         height={48}
                         className="h-12 w-12 pixel-art"
@@ -403,30 +422,51 @@ export default function RpgPage() {
 
       <section className="mt-4 rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-900">Pixel Art Items</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {items.map((item) => {
-            const isEquipped = equippedBySlot[item.eq_slot as EquipmentSlotId] === item.code;
-            const src = `/pixelart/${item.code}`;
+        {(() => {
+          const discovered = items.filter((item) => discoveredItemIds.has(item.id));
+          const undiscovered = items.filter((item) => !discoveredItemIds.has(item.id));
+          const renderItem = (item: typeof items[number]) => {
+            const isEquipped = equippedBySlot[item.eq_slot as EquipmentSlotId] === item.id;
+            const isDiscovered = discoveredItemIds.has(item.id);
+            const src = `/${item.icon_path}`;
             return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleEquipItem(item.code, item.eq_slot as EquipmentSlotId)}
-              className={`flex h-14 w-14 items-center justify-center rounded-md border bg-gray-50 transition-colors ${
-                isEquipped ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'
-              }`}
-              title={`${item.name} | ${item.type} | ${item.eq_slot}`}
-            >
-              <Image
-                src={src}
-                alt={item.name}
-                width={48}
-                height={48}
-                className="h-12 w-12 pixel-art"
-              />
-            </button>
-          )})}
-        </div>
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleEquipItem(item.id, item.eq_slot as EquipmentSlotId)}
+                disabled={!isDiscovered}
+                className={`flex h-14 w-14 items-center justify-center rounded-md border bg-gray-50 transition-colors ${
+                  isEquipped ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'
+                } ${isDiscovered ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                title={`${item.id} | ${item.eq_slot}`}
+              >
+                <Image
+                  src={src}
+                  alt={item.id}
+                  width={48}
+                  height={48}
+                  className={`h-12 w-12 pixel-art ${isDiscovered ? '' : 'brightness-0'}`}
+                />
+              </button>
+            );
+          };
+          return (
+            <>
+              {discovered.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-medium text-gray-500">Odkryte ({discovered.length})</p>
+                  <div className="flex flex-wrap gap-2">{discovered.map(renderItem)}</div>
+                </div>
+              )}
+              {undiscovered.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-medium text-gray-400">Nieodkryte ({undiscovered.length})</p>
+                  <div className="flex flex-wrap gap-2">{undiscovered.map(renderItem)}</div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </section>
     </div>
   );

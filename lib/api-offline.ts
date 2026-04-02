@@ -1,5 +1,6 @@
 import { getDb, OFFLINE_USER_ID, randomId } from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
+import { MOCK_RPG_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type {
   Plan,
   Exercise,
@@ -12,7 +13,8 @@ import type {
   CreateExerciseInput,
   UpdateExerciseInput,
   AddSetInput,
-  RpgItem,
+  RpgDiscoveredItem,
+  RpgItemDiscoveryRow,
   RpgEquipmentRow,
   RpgEquipmentWithItem,
 } from '@/lib/types';
@@ -181,19 +183,28 @@ export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
 
 // ─── RPG items / equipment (offline fallback) ───────────────────────────────
 
-export async function getRpgItems(): Promise<RpgItem[]> {
+export async function getRpgItems(): Promise<RpgDiscoveredItem[]> {
   const db = await getDb();
   const rows = await db.getAll('rpg_items');
-  rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  if (rows.length === 0) {
+    const tx = db.transaction('rpg_items', 'readwrite');
+    for (const item of MOCK_RPG_ITEMS) {
+      await tx.store.put(item);
+    }
+    await tx.done;
+    return [...MOCK_RPG_ITEMS];
+  }
+  rows.sort((a, b) => a.id.localeCompare(b.id));
   return rows;
 }
 
 export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
   const db = await getDb();
   const rows = await db.getAll('rpg_equipment');
+  const mockById = new Map(MOCK_RPG_ITEMS.map((item) => [item.id, item] as const));
   const result: RpgEquipmentWithItem[] = [];
   for (const row of rows) {
-    const item = await db.get('rpg_items', row.item_id);
+    const item = (await db.get('rpg_items', row.item_id)) ?? mockById.get(row.item_id);
     if (!item) continue;
     result.push({ ...row, item });
   }
@@ -221,6 +232,7 @@ export async function equipRpgItem(input: { slot: string; item_id: string }): Pr
         updated_at: now,
       };
   await db.put('rpg_equipment', row);
+  await discoverItem(input.item_id);
   return row;
 }
 
@@ -230,6 +242,25 @@ export async function unequipRpgItem(slot: string): Promise<void> {
   const existing = existingRows.find((row) => row.slot === slot);
   if (!existing) return;
   await db.delete('rpg_equipment', existing.id);
+}
+
+export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
+  const db = await getDb();
+  return await db.getAllFromIndex('rpg_item_discoveries', 'by_user', OFFLINE_USER_ID);
+}
+
+export async function discoverItem(itemId: string): Promise<RpgItemDiscoveryRow> {
+  const db = await getDb();
+  const existing = await db.getFromIndex('rpg_item_discoveries', 'by_user_item', [OFFLINE_USER_ID, itemId]);
+  if (existing) return existing;
+  const row: RpgItemDiscoveryRow = {
+    id: randomId(),
+    user_id: OFFLINE_USER_ID,
+    item_id: itemId,
+    discovered_at: new Date().toISOString(),
+  };
+  await db.put('rpg_item_discoveries', row);
+  return row;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

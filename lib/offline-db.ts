@@ -1,5 +1,13 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Plan, Exercise, Workout, Set, RpgItem, RpgEquipmentRow } from '@/lib/types';
+import type {
+  Plan,
+  Exercise,
+  Workout,
+  Set,
+  RpgDiscoveredItem,
+  RpgEquipmentRow,
+  RpgItemDiscoveryRow,
+} from '@/lib/types';
 import { computeSetXp } from '@/lib/rpg/xp';
 
 interface BicekDB extends DBSchema {
@@ -25,13 +33,18 @@ interface BicekDB extends DBSchema {
   };
   rpg_items: {
     key: string;
-    value: RpgItem;
-    indexes: { by_code: string };
+    value: RpgDiscoveredItem;
+    indexes: { by_eq_slot: string };
   };
   rpg_equipment: {
     key: string;
     value: RpgEquipmentRow;
     indexes: { by_user: string; by_slot: string };
+  };
+  rpg_item_discoveries: {
+    key: string;
+    value: RpgItemDiscoveryRow;
+    indexes: { by_user: string; by_user_item: [string, string] };
   };
 }
 
@@ -39,7 +52,7 @@ let dbPromise: Promise<IDBPDatabase<BicekDB>> | null = null;
 
 export function getDb(): Promise<IDBPDatabase<BicekDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<BicekDB>('bicek-offline', 4, {
+    dbPromise = openDB<BicekDB>('bicek-offline', 5, {
       async upgrade(db, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) {
         const plans = db.createObjectStore('plans', { keyPath: 'id' });
@@ -91,11 +104,17 @@ export function getDb(): Promise<IDBPDatabase<BicekDB>> {
 
         if (oldVersion < 4) {
           const rpgItems = db.createObjectStore('rpg_items', { keyPath: 'id' });
-          rpgItems.createIndex('by_code', 'code', { unique: true });
+          rpgItems.createIndex('by_eq_slot', 'eq_slot');
 
           const rpgEquipment = db.createObjectStore('rpg_equipment', { keyPath: 'id' });
           rpgEquipment.createIndex('by_user', 'user_id');
           rpgEquipment.createIndex('by_slot', 'slot');
+        }
+
+        if (oldVersion < 5) {
+          const rpgDiscoveries = db.createObjectStore('rpg_item_discoveries', { keyPath: 'id' });
+          rpgDiscoveries.createIndex('by_user', 'user_id');
+          rpgDiscoveries.createIndex('by_user_item', ['user_id', 'item_id'], { unique: true });
         }
       },
     });
@@ -109,7 +128,7 @@ export function randomId(): string {
   return crypto.randomUUID();
 }
 
-export async function mirrorRpgItems(items: RpgItem[]): Promise<void> {
+export async function mirrorRpgItems(items: RpgDiscoveredItem[]): Promise<void> {
   const db = await getDb();
   const tx = db.transaction('rpg_items', 'readwrite');
   await tx.store.clear();

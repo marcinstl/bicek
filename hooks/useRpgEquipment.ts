@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  getDiscoveredItems,
   equipRpgItem,
   getRpgEquipment,
   getRpgItems,
@@ -11,6 +12,7 @@ import {
 export const rpgKeys = {
   all: ['rpg'] as const,
   items: () => [...rpgKeys.all, 'items'] as const,
+  discoveries: () => [...rpgKeys.all, 'discoveries'] as const,
   equipment: () => [...rpgKeys.all, 'equipment'] as const,
 };
 
@@ -32,12 +34,22 @@ export function useRpgEquipment() {
   });
 }
 
+export function useRpgDiscoveries() {
+  return useQuery({
+    queryKey: rpgKeys.discoveries(),
+    queryFn: getDiscoveredItems,
+    staleTime: 1000 * 10,
+    gcTime: 1000 * 60 * 30,
+  });
+}
+
 export function useEquipRpgItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { slot: string; item_id: string }) => equipRpgItem(input),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: rpgKeys.equipment() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.discoveries() });
     },
   });
 }

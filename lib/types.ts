@@ -91,6 +91,19 @@ export interface RpgItem {
   created_at: string;
 }
 
+export interface RpgDiscoveredItem {
+  id: string;
+  eq_slot: string;
+  icon_path: string;
+}
+
+export interface RpgItemDiscoveryRow {
+  id: string;
+  user_id: string;
+  item_id: string;
+  discovered_at: string;
+}
+
 export interface RpgEquipmentRow {
   id: string;
   user_id: string;
@@ -101,5 +114,5 @@ export interface RpgEquipmentRow {
 }
 
 export interface RpgEquipmentWithItem extends RpgEquipmentRow {
-  item: RpgItem;
+  item: RpgDiscoveredItem;
 }
