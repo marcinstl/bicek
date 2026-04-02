@@ -39,7 +39,7 @@ interface BicekDB extends DBSchema {
   rpg_equipment: {
     key: string;
     value: RpgEquipmentRow;
-    indexes: { by_user: string; by_slot: string };
+    indexes: { by_user: string };
   };
   rpg_item_discoveries: {
     key: string;
@@ -52,7 +52,7 @@ let dbPromise: Promise<IDBPDatabase<BicekDB>> | null = null;
 
 export function getDb(): Promise<IDBPDatabase<BicekDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<BicekDB>('bicek-offline', 5, {
+    dbPromise = openDB<BicekDB>('bicek-offline', 6, {
       async upgrade(db, oldVersion, _newVersion, tx) {
         if (oldVersion < 1) {
         const plans = db.createObjectStore('plans', { keyPath: 'id' });
@@ -108,13 +108,24 @@ export function getDb(): Promise<IDBPDatabase<BicekDB>> {
 
           const rpgEquipment = db.createObjectStore('rpg_equipment', { keyPath: 'id' });
           rpgEquipment.createIndex('by_user', 'user_id');
-          rpgEquipment.createIndex('by_slot', 'slot');
+          // Legacy index removed in v6; cast needed since schema type no longer declares it.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (rpgEquipment as any).createIndex('by_slot', 'slot');
         }
 
         if (oldVersion < 5) {
           const rpgDiscoveries = db.createObjectStore('rpg_item_discoveries', { keyPath: 'id' });
           rpgDiscoveries.createIndex('by_user', 'user_id');
           rpgDiscoveries.createIndex('by_user_item', ['user_id', 'item_id'], { unique: true });
+        }
+
+        if (oldVersion < 6) {
+          // Remove the now-unused by_slot index; slot is derived from rpg_items.eq_slot.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const equipStore = tx.objectStore('rpg_equipment') as any;
+          if (equipStore.indexNames.contains('by_slot')) {
+            equipStore.deleteIndex('by_slot');
+          }
         }
       },
     });
@@ -153,16 +164,9 @@ export async function mirrorUpsertRpgEquipment(row: RpgEquipmentRow): Promise<vo
   await db.put('rpg_equipment', row);
 }
 
-export async function mirrorDeleteRpgEquipmentBySlot(userId: string, slot: string): Promise<void> {
+export async function mirrorDeleteRpgEquipmentByItemId(userId: string, itemId: string): Promise<void> {
   const db = await getDb();
-  const tx = db.transaction('rpg_equipment', 'readwrite');
-  let cursor = await tx.store.index('by_slot').openCursor(slot);
-  while (cursor) {
-    if (cursor.value.user_id === userId) {
-      await cursor.delete();
-      break;
-    }
-    cursor = await cursor.continue();
-  }
-  await tx.done;
+  const rows = await db.getAllFromIndex('rpg_equipment', 'by_user', userId);
+  const match = rows.find((r) => r.item_id === itemId);
+  if (match) await db.delete('rpg_equipment', match.id);
 }

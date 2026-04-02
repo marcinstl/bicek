@@ -98,13 +98,19 @@ export type RpgRequirement =
   | { type: 'workout_count'; count: number; secret?: boolean }
   | { type: 'secret' };
 
+export interface SpritePosition {
+  col: number;
+  row: number;
+}
+
 export interface RpgDiscoveredItem {
   id: string;
   eq_slot: string;
-  icon_path: string;
+  spritesheet_path: string;
   name?: string;
   item_type?: string;
   requirements?: RpgRequirement[];
+  sprite_positions?: SpritePosition[] | null;
 }
 
 export interface RpgItemDiscoveryRow {
@@ -117,7 +123,6 @@ export interface RpgItemDiscoveryRow {
 export interface RpgEquipmentRow {
   id: string;
   user_id: string;
-  slot: string;
   item_id: string;
   equipped_at: string;
   updated_at: string;

@@ -19,7 +19,8 @@ export async function GET() {
   const [itemsResult, discoveriesResult] = await Promise.all([
     supabase
       .from('rpg_items')
-      .select('id,eq_slot,icon_path,name,type,rpg_item_requirements(type,level,kind,xp,count,secret)')
+      .select('id,eq_slot,spritesheet_path,name,type,sprite_positions,rpg_item_requirements(type,level,kind,xp,count,secret)')
+      .not('sprite_positions', 'is', null)
       .order('created_at', { ascending: true }),
     supabase
       .from('rpg_item_discoveries')
@@ -31,7 +32,9 @@ export async function GET() {
 
   const discoveredIds = new Set((discoveriesResult.data ?? []).map((d) => d.item_id));
 
-  const items = (itemsResult.data ?? []).map((item) => {
+  const items = (itemsResult.data ?? [])
+    .filter((item) => Array.isArray(item.sprite_positions) && (item.sprite_positions as unknown[]).length > 0)
+    .map((item) => {
     const isDiscovered = discoveredIds.has(item.id);
     const reqs = rowsToRequirements(
       Array.isArray(item.rpg_item_requirements) ? item.rpg_item_requirements : []
@@ -39,10 +42,11 @@ export async function GET() {
     return {
       id: item.id,
       eq_slot: item.eq_slot,
-      icon_path: item.icon_path,
+      spritesheet_path: item.spritesheet_path,
       name: isDiscovered ? item.name : null,
       item_type: isDiscovered ? item.type : null,
       requirements: sanitizeRequirements(reqs),
+      sprite_positions: item.sprite_positions as import('@/lib/types').SpritePosition[],
     };
   });
 

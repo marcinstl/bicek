@@ -125,11 +125,11 @@ export const getRpgItems = () =>
 export const getRpgEquipment = () =>
   route(() => (isOfflineMode() ? offline.getRpgEquipment() : online.getRpgEquipment()));
 
-export const equipRpgItem = (input: { slot: string; item_id: string }) =>
+export const equipRpgItem = (input: { item_id: string }) =>
   route(() => (isOfflineMode() ? offline.equipRpgItem(input) : online.equipRpgItem(input)));
 
-export const unequipRpgItem = (slot: string) =>
-  route(() => (isOfflineMode() ? offline.unequipRpgItem(slot) : online.unequipRpgItem(slot)));
+export const unequipRpgItem = (itemId: string) =>
+  route(() => (isOfflineMode() ? offline.unequipRpgItem(itemId) : online.unequipRpgItem(itemId)));
 
 export const getDiscoveredItems = () =>
   route(() => (isOfflineMode() ? offline.getDiscoveredItems() : online.getDiscoveredItems()));

@@ -46,7 +46,7 @@ export function useRpgDiscoveries() {
 export function useEquipRpgItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { slot: string; item_id: string }) => equipRpgItem(input),
+    mutationFn: (input: { item_id: string }) => equipRpgItem(input),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: rpgKeys.equipment() });
       queryClient.invalidateQueries({ queryKey: rpgKeys.discoveries() });
@@ -57,7 +57,7 @@ export function useEquipRpgItem() {
 export function useUnequipRpgItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (slot: string) => unequipRpgItem(slot),
+    mutationFn: (itemId: string) => unequipRpgItem(itemId),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: rpgKeys.equipment() });
     },

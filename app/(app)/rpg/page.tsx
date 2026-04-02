@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { SpriteIcon } from '@/components/SpriteIcon';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
@@ -133,20 +134,11 @@ export default function RpgPage() {
   }, [items]);
   const discoveredItemIds = useMemo(() => new Set(discoveries.map((d) => d.item_id)), [discoveries]);
 
-  const itemIdByFileName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of items) {
-      const fileName = item.icon_path.split('/').pop();
-      if (fileName) map.set(fileName, item.id);
-    }
-    return map;
-  }, [items]);
-
   const remoteEquippedBySlot = useMemo<EquippedBySlot>(() => {
     const mapped: EquippedBySlot = {};
     for (const row of equipmentRows) {
-      const slot = row.slot as EquipmentSlotId;
-      if (!EQUIPMENT_SLOTS.some((s) => s.id === slot)) continue;
+      const slot = row.item?.eq_slot as EquipmentSlotId | undefined;
+      if (!slot || !EQUIPMENT_SLOTS.some((s) => s.id === slot)) continue;
       mapped[slot] = row.item?.id;
     }
     return mapped;
@@ -180,24 +172,12 @@ export default function RpgPage() {
       return;
     }
 
+    // Legacy localStorage migration is no longer supported (items switched to sprite sheet system).
     setMigrationAttempted(true);
-    void (async () => {
-      for (const [slot, fileName] of localEntries) {
-        const itemId = itemIdByFileName.get(fileName);
-        if (!itemId) continue;
-        const item = itemById.get(itemId);
-        if (!item) continue;
-        if (item.eq_slot !== slot) continue;
-        await equipMutation.mutateAsync({ slot, item_id: itemId });
-      }
-      window.localStorage.setItem(EQUIPMENT_MIGRATION_KEY, 'true');
-    })();
+    window.localStorage.setItem(EQUIPMENT_MIGRATION_KEY, 'true');
   }, [
-    equipMutation,
     equipmentHydrated,
     hasRemoteEquipment,
-    itemById,
-    itemIdByFileName,
     items.length,
     localEquippedBySlot,
     migrationAttempted,
@@ -224,10 +204,10 @@ export default function RpgPage() {
 
     const currentCode = equippedBySlot[eqSlot];
     if (currentCode === itemId) {
-      void unequipMutation.mutateAsync(eqSlot);
+      void unequipMutation.mutateAsync(itemId);
       return;
     }
-    void equipMutation.mutateAsync({ slot: eqSlot, item_id: itemId });
+    void equipMutation.mutateAsync({ item_id: itemId });
   };
 
   const totalXp = useMemo(() => {
@@ -392,15 +372,11 @@ export default function RpgPage() {
                   {equippedBySlot[slot.id] ? (() => {
                     const itemId = equippedBySlot[slot.id]!;
                     const item = itemById.get(itemId);
-                    const src = item ? `/${item.icon_path}` : '';
-                    if (!src) return null;
+                    if (!item?.sprite_positions?.length) return null;
                     return (
-                      <Image
-                        src={src}
-                        alt={item?.id ?? itemId}
-                        width={48}
-                        height={48}
-                        className="h-12 w-12 pixel-art"
+                      <SpriteIcon
+                        positions={item.sprite_positions}
+                        size={48}
                       />
                     );
                   })() : null}
@@ -465,7 +441,6 @@ export default function RpgPage() {
           const renderItem = (item: typeof items[number]) => {
             const isEquipped = equippedBySlot[item.eq_slot as EquipmentSlotId] === item.id;
             const isDiscovered = discoveredItemIds.has(item.id);
-            const src = `/${item.icon_path}`;
             const reqs = item.requirements ?? [];
             return (
               <button
@@ -480,13 +455,11 @@ export default function RpgPage() {
                 } ${isDiscovered ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
               >
                 <div className="shrink-0">
-                  <Image
-                    src={src}
-                  alt={item.name ?? '???'}
-                  width={56}
-                  height={56}
-                  className={`h-14 w-14 pixel-art ${isDiscovered ? '' : 'brightness-0'}`}
-                />
+                  <SpriteIcon
+                    positions={item.sprite_positions!}
+                    size={56}
+                    grayscale={!isDiscovered}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm font-semibold ${item.name ? 'text-gray-900' : 'text-gray-400'}`}>

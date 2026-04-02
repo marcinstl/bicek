@@ -31,7 +31,7 @@ function requirementsForIndex(i: number): RpgRequirement[] {
 export const MOCK_RPG_ITEMS: RpgDiscoveredItem[] = mockFileNames.map((fileName, i) => ({
   id: `mock-${fileName}`,
   eq_slot: 'slot-weapon',
-  icon_path: `pixelart/${fileName}`,
+  spritesheet_path: 'pixelart/eq_sprites_t.png',
   name: fileName.replace('.png', '').replace(/_/g, ' '),
   item_type: 'weapon-sword',
   requirements: requirementsForIndex(i).map((req) =>
@@ -39,4 +39,5 @@ export const MOCK_RPG_ITEMS: RpgDiscoveredItem[] = mockFileNames.map((fileName, 
       ? ({ type: 'secret' } as import('@/lib/types').RpgRequirement)
       : req
   ),
+  sprite_positions: null,
 }));

@@ -213,35 +213,40 @@ export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
   return result;
 }
 
-export async function equipRpgItem(input: { slot: string; item_id: string }): Promise<RpgEquipmentRow> {
+export async function equipRpgItem(input: { item_id: string }): Promise<RpgEquipmentRow> {
   const db = await getDb();
-  const existingRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
-  const existing = existingRows.find((row) => row.slot === input.slot);
-  const now = new Date().toISOString();
-  const row: RpgEquipmentRow = existing
-    ? {
-        ...existing,
-        item_id: input.item_id,
-        equipped_at: now,
-        updated_at: now,
+  const allRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
+  const allItems = await db.getAll('rpg_items');
+  const targetItem = allItems.find((i) => i.id === input.item_id);
+  const targetSlot = targetItem?.eq_slot;
+
+  // Remove any existing item in the same slot.
+  if (targetSlot) {
+    for (const row of allRows) {
+      const rowItem = allItems.find((i) => i.id === row.item_id);
+      if (rowItem?.eq_slot === targetSlot) {
+        await db.delete('rpg_equipment', row.id);
       }
-    : {
-        id: randomId(),
-        user_id: OFFLINE_USER_ID,
-        slot: input.slot,
-        item_id: input.item_id,
-        equipped_at: now,
-        updated_at: now,
-      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const row: RpgEquipmentRow = {
+    id: randomId(),
+    user_id: OFFLINE_USER_ID,
+    item_id: input.item_id,
+    equipped_at: now,
+    updated_at: now,
+  };
   await db.put('rpg_equipment', row);
   await discoverItem(input.item_id);
   return row;
 }
 
-export async function unequipRpgItem(slot: string): Promise<void> {
+export async function unequipRpgItem(itemId: string): Promise<void> {
   const db = await getDb();
   const existingRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
-  const existing = existingRows.find((row) => row.slot === slot);
+  const existing = existingRows.find((row) => row.item_id === itemId);
   if (!existing) return;
   await db.delete('rpg_equipment', existing.id);
 }

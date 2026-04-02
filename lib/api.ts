@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase';
 import {
-  mirrorDeleteRpgEquipmentBySlot,
+  mirrorDeleteRpgEquipmentByItemId,
   mirrorRpgEquipment,
   mirrorRpgItems,
   mirrorUpsertRpgEquipment,
@@ -256,7 +256,7 @@ export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('rpg_equipment')
-    .select('*, item:rpg_items(id,eq_slot,icon_path)')
+    .select('*, item:rpg_items(id,eq_slot,spritesheet_path,sprite_positions)')
     .order('updated_at', { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as RpgEquipmentWithItem[];
@@ -268,22 +268,22 @@ export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
   return rows;
 }
 
-export async function equipRpgItem(input: { slot: string; item_id: string }): Promise<RpgEquipmentRow> {
+export async function equipRpgItem(input: { item_id: string }): Promise<RpgEquipmentRow> {
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('Not authenticated');
 
+  // Trigger rpg_equipment_one_per_slot handles removing the old item in the same slot.
   const { data, error } = await supabase
     .from('rpg_equipment')
     .upsert(
       {
         user_id: userData.user.id,
-        slot: input.slot,
         item_id: input.item_id,
         equipped_at: new Date().toISOString(),
       },
-      { onConflict: 'user_id,slot' }
+      { onConflict: 'user_id,item_id' }
     )
     .select()
     .single();
@@ -293,7 +293,7 @@ export async function equipRpgItem(input: { slot: string; item_id: string }): Pr
   return row;
 }
 
-export async function unequipRpgItem(slot: string): Promise<void> {
+export async function unequipRpgItem(itemId: string): Promise<void> {
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
@@ -303,9 +303,9 @@ export async function unequipRpgItem(slot: string): Promise<void> {
     .from('rpg_equipment')
     .delete()
     .eq('user_id', userData.user.id)
-    .eq('slot', slot);
+    .eq('item_id', itemId);
   if (error) throw error;
-  await mirrorDeleteRpgEquipmentBySlot(userData.user.id, slot);
+  await mirrorDeleteRpgEquipmentByItemId(userData.user.id, itemId);
 }
 
 export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
