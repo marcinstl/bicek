@@ -12,6 +12,7 @@ export const OFFLINE_COOKIE = 'bicek_offline';
 
 export function isOfflineMode(): boolean {
   if (typeof window === 'undefined') return false;
+  if (process.env.NEXT_PUBLIC_OFFLINE_MODE !== 'true') return false;
   return document.cookie.split(';').some((c) => c.trim().startsWith(`${OFFLINE_COOKIE}=true`));
 }
 
@@ -25,10 +26,6 @@ export function disableOfflineMode() {
 
 function route<T>(fn: () => T): T {
   return fn();
-}
-
-function useMockRpgInDev(): boolean {
-  return process.env.NODE_ENV === 'development';
 }
 
 // ─── Plans ───────────────────────────────────────────────────────────────────
@@ -123,26 +120,22 @@ export const getExerciseHistory = (exerciseId: string, excludeWorkoutId: string)
 // ─── RPG items / equipment ───────────────────────────────────────────────────
 
 export const getRpgItems = () =>
-  route(() => (useMockRpgInDev() ? offline.getRpgItems() : (isOfflineMode() ? offline.getRpgItems() : online.getRpgItems())));
+  route(() => (isOfflineMode() ? offline.getRpgItems() : online.getRpgItems()));
 
 export const getRpgEquipment = () =>
-  route(() => (useMockRpgInDev() ? offline.getRpgEquipment() : (isOfflineMode() ? offline.getRpgEquipment() : online.getRpgEquipment())));
+  route(() => (isOfflineMode() ? offline.getRpgEquipment() : online.getRpgEquipment()));
 
 export const equipRpgItem = (input: { slot: string; item_id: string }) =>
-  route(() => (useMockRpgInDev() ? offline.equipRpgItem(input) : (isOfflineMode() ? offline.equipRpgItem(input) : online.equipRpgItem(input))));
+  route(() => (isOfflineMode() ? offline.equipRpgItem(input) : online.equipRpgItem(input)));
 
 export const unequipRpgItem = (slot: string) =>
-  route(() => (useMockRpgInDev() ? offline.unequipRpgItem(slot) : (isOfflineMode() ? offline.unequipRpgItem(slot) : online.unequipRpgItem(slot))));
+  route(() => (isOfflineMode() ? offline.unequipRpgItem(slot) : online.unequipRpgItem(slot)));
 
 export const getDiscoveredItems = () =>
-  route(() => (useMockRpgInDev() ? offline.getDiscoveredItems() : (isOfflineMode() ? offline.getDiscoveredItems() : online.getDiscoveredItems())));
+  route(() => (isOfflineMode() ? offline.getDiscoveredItems() : online.getDiscoveredItems()));
 
-export const discoverItem = (itemId: string) =>
-  route(() =>
-    useMockRpgInDev()
-      ? offline.discoverItem(itemId)
-      : (isOfflineMode() ? offline.discoverItem(itemId) : online.discoverItem(itemId))
-  );
+export const tryDiscoverItems = () =>
+  route(() => (isOfflineMode() ? offline.tryDiscoverItems() : online.tryDiscoverItems()));
 
 // ─── Re-export shared utils from api.ts ──────────────────────────────────────
 

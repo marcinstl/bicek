@@ -91,10 +91,20 @@ export interface RpgItem {
   created_at: string;
 }
 
+export type RpgRequirement =
+  | { type: 'total_level'; level: number; secret?: boolean }
+  | { type: 'kind_level'; kind: ExerciseKind; level: number; secret?: boolean }
+  | { type: 'total_xp'; xp: number; secret?: boolean }
+  | { type: 'workout_count'; count: number; secret?: boolean }
+  | { type: 'secret' };
+
 export interface RpgDiscoveredItem {
   id: string;
   eq_slot: string;
   icon_path: string;
+  name?: string;
+  item_type?: string;
+  requirements?: RpgRequirement[];
 }
 
 export interface RpgItemDiscoveryRow {

@@ -245,13 +245,9 @@ export async function getWorkoutHistory(): Promise<WorkoutWithPlan[]> {
 // ─── RPG items / equipment ───────────────────────────────────────────────────
 
 export async function getRpgItems(): Promise<RpgDiscoveredItem[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('rpg_items')
-    .select('id,eq_slot,icon_path')
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  const items = (data ?? []) as RpgDiscoveredItem[];
+  const res = await fetch('/api/rpg/items');
+  if (!res.ok) throw new Error('Failed to fetch RPG items');
+  const items = (await res.json()) as RpgDiscoveredItem[];
   await mirrorRpgItems(items);
   return items;
 }
@@ -277,8 +273,6 @@ export async function equipRpgItem(input: { slot: string; item_id: string }): Pr
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('Not authenticated');
-
-  await discoverItem(input.item_id);
 
   const { data, error } = await supabase
     .from('rpg_equipment')
@@ -324,25 +318,11 @@ export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
   return (data ?? []) as RpgItemDiscoveryRow[];
 }
 
-export async function discoverItem(itemId: string): Promise<RpgItemDiscoveryRow> {
-  const supabase = createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!userData.user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase
-    .from('rpg_item_discoveries')
-    .upsert(
-      {
-        user_id: userData.user.id,
-        item_id: itemId,
-      },
-      { onConflict: 'user_id,item_id' }
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  return data as RpgItemDiscoveryRow;
+export async function tryDiscoverItems(): Promise<string[]> {
+  const res = await fetch('/api/rpg/discover', { method: 'POST' });
+  if (!res.ok) return [];
+  const json = (await res.json()) as { newly_discovered?: string[] };
+  return json.newly_discovered ?? [];
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

@@ -1,9 +1,11 @@
 import { getDb, OFFLINE_USER_ID, randomId } from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
+import { checkRequirements } from '@/lib/rpg/requirements';
 import { MOCK_RPG_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type {
   Plan,
   Exercise,
+  ExerciseKind,
   Workout,
   Set,
   SetWithExercise,
@@ -261,6 +263,48 @@ export async function discoverItem(itemId: string): Promise<RpgItemDiscoveryRow>
   };
   await db.put('rpg_item_discoveries', row);
   return row;
+}
+
+export async function tryDiscoverItems(): Promise<string[]> {
+  const db = await getDb();
+
+  const allWorkouts = await db.getAll('workouts');
+  const completedWorkouts = allWorkouts.filter((w) => w.ended_at !== null);
+  const workoutCount = completedWorkouts.length;
+  const completedIds = new Set(completedWorkouts.map((w) => w.id));
+
+  const kindTotals: Record<ExerciseKind, number> = {
+    weighted_reps: 0,
+    bodyweight_reps: 0,
+    time_based: 0,
+    distance_per_time: 0,
+  };
+
+  const allSets = await db.getAll('sets');
+  for (const s of allSets) {
+    if (!completedIds.has(s.workout_id)) continue;
+    const exercise = await db.get('exercises', s.exercise_id);
+    const kind: ExerciseKind = exercise?.kind ?? 'bodyweight_reps';
+    kindTotals[kind] += s.xp ?? computeSetXp(kind, s);
+  }
+
+  const totalXp = Object.values(kindTotals).reduce((sum, v) => sum + v, 0);
+  const context = { totalXp, kindTotals, workoutCount };
+
+  const items = await getRpgItems();
+  const discoveries = await getDiscoveredItems();
+  const discoveredIds = new Set(discoveries.map((d) => d.item_id));
+
+  const newlyDiscovered: string[] = [];
+  for (const item of items) {
+    if (discoveredIds.has(item.id)) continue;
+    if (checkRequirements(item.requirements, context)) {
+      await discoverItem(item.id);
+      newlyDiscovered.push(item.id);
+    }
+  }
+
+  return newlyDiscovered;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

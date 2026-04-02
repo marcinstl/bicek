@@ -10,6 +10,11 @@ declare
   ex_abs uuid;
   ex_triceps uuid;
 begin
+  -- Skip on fresh local DB where the user doesn't exist yet.
+  if not exists (select 1 from profiles where id = v_user_id) then
+    return;
+  end if;
+
   -- Idempotency guard: if this workout already has sets, skip.
   if exists (select 1 from sets where workout_id = v_workout_id) then
     return;

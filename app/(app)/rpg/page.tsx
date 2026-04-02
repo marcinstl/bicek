@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import {
   useEquipRpgItem,
@@ -10,11 +11,12 @@ import {
   useRpgEquipment,
   useRpgItems,
   useUnequipRpgItem,
+  rpgKeys,
 } from '@/hooks/useRpgEquipment';
-import { isOfflineMode } from '@/lib/api-router';
+import { isOfflineMode, tryDiscoverItems } from '@/lib/api-router';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
-import type { ExerciseKind } from '@/lib/types';
+import type { ExerciseKind, RpgRequirement } from '@/lib/types';
 import { getExerciseKindTitle } from '@/lib/exercise-stats';
 
 type RpgEvent = {
@@ -69,8 +71,20 @@ function formatEventDate(iso: string): string {
   });
 }
 
+function formatRequirement(req: RpgRequirement): string {
+  switch (req.type) {
+    case 'total_level': return `Poziom ${req.level}`;
+    case 'kind_level': return `${getExerciseKindTitle(req.kind)} Lv.${req.level}`;
+    case 'total_xp': return `${req.xp} XP`;
+    case 'workout_count': return `${req.count} treningów`;
+    case 'secret': return '???';
+    default: return '???';
+  }
+}
+
 export default function RpgPage() {
   const offline = isOfflineMode();
+  const queryClient = useQueryClient();
   const { data: history = [], isLoading: historyLoading } = useWorkoutHistory();
   const workoutIds = useMemo(() => history.map((w) => w.id), [history]);
   const { data: sets = [], isLoading: setsLoading } = useSetsForWorkouts(workoutIds, workoutIds.length > 0);
@@ -84,6 +98,20 @@ export default function RpgPage() {
   const [equipmentHydrated, setEquipmentHydrated] = useState(false);
   const [migrationAttempted, setMigrationAttempted] = useState(false);
   const [showTotalExp, setShowTotalExp] = useState(true);
+
+  const discoverTriggered = useRef(false);
+  const dataReady = !itemsLoading && !discoveriesLoading && !historyLoading && !(workoutIds.length > 0 && setsLoading);
+
+  useEffect(() => {
+    if (!dataReady) return;
+    if (discoverTriggered.current) return;
+    discoverTriggered.current = true;
+    void tryDiscoverItems().then((newIds) => {
+      if (newIds.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: rpgKeys.discoveries() });
+      }
+    });
+  }, [dataReady, queryClient]);
 
   useEffect(() => {
     try {
@@ -423,45 +451,83 @@ export default function RpgPage() {
       <section className="mt-4 rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-4">
         <h3 className="text-sm font-semibold text-gray-900">Pixel Art Items</h3>
         {(() => {
-          const discovered = items.filter((item) => discoveredItemIds.has(item.id));
+          const discoveryByItemId = new Map(discoveries.map((d) => [d.item_id, d]));
+          const discovered = items
+            .filter((item) => discoveredItemIds.has(item.id))
+            .sort((a, b) => {
+              const da = discoveryByItemId.get(a.id)?.discovered_at ?? '';
+              const db = discoveryByItemId.get(b.id)?.discovered_at ?? '';
+              return db.localeCompare(da);
+            });
           const undiscovered = items.filter((item) => !discoveredItemIds.has(item.id));
+
           const renderItem = (item: typeof items[number]) => {
             const isEquipped = equippedBySlot[item.eq_slot as EquipmentSlotId] === item.id;
             const isDiscovered = discoveredItemIds.has(item.id);
             const src = `/${item.icon_path}`;
+            const reqs = item.requirements ?? [];
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleEquipItem(item.id, item.eq_slot as EquipmentSlotId)}
                 disabled={!isDiscovered}
-                className={`flex h-14 w-14 items-center justify-center rounded-md border bg-gray-50 transition-colors ${
-                  isEquipped ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300'
-                } ${isDiscovered ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
-                title={`${item.id} | ${item.eq_slot}`}
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors ${
+                  isEquipped
+                    ? 'border-emerald-400 bg-emerald-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                } ${isDiscovered ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
               >
-                <Image
-                  src={src}
-                  alt={item.id}
-                  width={48}
-                  height={48}
-                  className={`h-12 w-12 pixel-art ${isDiscovered ? '' : 'brightness-0'}`}
+                <div className="shrink-0">
+                  <Image
+                    src={src}
+                  alt={item.name ?? '???'}
+                  width={56}
+                  height={56}
+                  className={`h-14 w-14 pixel-art ${isDiscovered ? '' : 'brightness-0'}`}
                 />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold ${item.name ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {item.name ?? '???'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {item.item_type ?? '—'} · {item.eq_slot}
+                  </p>
+                  {reqs.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {reqs.map((req, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200"
+                        >
+                          {formatRequirement(req)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {isEquipped && (
+                  <span className="shrink-0 text-[10px] font-semibold text-emerald-600">
+                    Equipped
+                  </span>
+                )}
               </button>
             );
           };
+
           return (
             <>
               {discovered.length > 0 && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-medium text-gray-500">Odkryte ({discovered.length})</p>
-                  <div className="flex flex-wrap gap-2">{discovered.map(renderItem)}</div>
+                  <div className="flex flex-col gap-1.5">{discovered.map(renderItem)}</div>
                 </div>
               )}
               {undiscovered.length > 0 && (
                 <div className="mt-3">
                   <p className="mb-2 text-xs font-medium text-gray-400">Nieodkryte ({undiscovered.length})</p>
-                  <div className="flex flex-wrap gap-2">{undiscovered.map(renderItem)}</div>
+                  <div className="flex flex-col gap-1.5">{undiscovered.map(renderItem)}</div>
                 </div>
               )}
             </>

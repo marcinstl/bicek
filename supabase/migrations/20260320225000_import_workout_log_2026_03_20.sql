@@ -13,6 +13,11 @@ declare
   ex_row uuid;
   ex_leg_press uuid;
 begin
+  -- Skip on fresh local DB where the user doesn't exist yet.
+  if not exists (select 1 from profiles where id = v_user_id) then
+    return;
+  end if;
+
   -- Idempotency guard.
   if exists (select 1 from sets where workout_id = v_workout_id) then
     return;
