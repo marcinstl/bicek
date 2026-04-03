@@ -153,6 +153,64 @@ function generateSql(
   return lines.join('\n');
 }
 
+function generateAllItemsSql(items: DbItem[]): string {
+  const blocks: string[] = [
+    `-- Export wszystkich itemów (${items.length}) — ${new Date().toISOString().slice(0, 10)}`,
+    `-- INSERT ... ON CONFLICT (code) DO UPDATE — nie nadpisuje id`,
+    '',
+  ];
+
+  for (const item of items) {
+    const posJson = JSON.stringify(item.sprite_positions ?? []);
+    const buffsJson = JSON.stringify(
+      (item.buffs ?? []).map((b) => ({ type: 'xp_rate', kind: b.kind, value: b.value }))
+    );
+
+    blocks.push(
+      `-- ${item.code}`,
+      `INSERT INTO public.rpg_items (code, name, type, eq_slot, spritesheet_path, sprite_positions, buffs)`,
+      `VALUES (`,
+      `  ${sqlStr(item.code)},`,
+      `  ${sqlStr(item.name)},`,
+      `  ${sqlStr(item.type)},`,
+      `  ${sqlStr(item.eq_slot)},`,
+      `  'pixelart/eq_sprites_t.png',`,
+      `  '${posJson}',`,
+      `  '${buffsJson}'`,
+      `)`,
+      `ON CONFLICT (code) DO UPDATE SET`,
+      `  name = EXCLUDED.name,`,
+      `  type = EXCLUDED.type,`,
+      `  eq_slot = EXCLUDED.eq_slot,`,
+      `  sprite_positions = EXCLUDED.sprite_positions,`,
+      `  buffs = EXCLUDED.buffs;`,
+    );
+
+    // Always replace requirements (delete + re-insert)
+    blocks.push(
+      ``,
+      `DELETE FROM public.rpg_item_requirements`,
+      `WHERE item_id = (SELECT id FROM public.rpg_items WHERE code = ${sqlStr(item.code)});`,
+    );
+
+    for (const req of item.rpg_item_requirements) {
+      const level = req.type === 'total_level' || req.type === 'kind_level' ? nullOr(req.level ?? undefined) : 'NULL';
+      const kind = req.type === 'kind_level' && req.kind ? sqlStr(req.kind) : 'NULL';
+      const xp = req.type === 'total_xp' ? nullOr(req.xp ?? undefined) : 'NULL';
+      const count = req.type === 'workout_count' ? nullOr(req.count ?? undefined) : 'NULL';
+      blocks.push(
+        `INSERT INTO public.rpg_item_requirements (item_id, type, level, kind, xp, count, secret)`,
+        `SELECT id, ${sqlStr(req.type)}, ${level}, ${kind}, ${xp}, ${count}, ${req.secret}`,
+        `FROM public.rpg_items WHERE code = ${sqlStr(item.code)};`,
+      );
+    }
+
+    blocks.push('');
+  }
+
+  return blocks.join('\n');
+}
+
 function dbReqToForm(r: DbRequirement): Requirement {
   return {
     type: r.type as ReqType,
@@ -324,6 +382,8 @@ export default function AdminRpgPage() {
   const [buffs, setBuffs] = useState<Buff[]>([]);
   const [sql, setSql] = useState('');
   const [copied, setCopied] = useState(false);
+  const [exportSql, setExportSql] = useState('');
+  const [exportCopied, setExportCopied] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -467,6 +527,14 @@ export default function AdminRpgPage() {
             {selectedItem ? `Edycja: ${selectedItem.code}` : 'Nowy item'}
           </h1>
           <span className="text-xs text-gray-400">admin — tylko lokalnie</span>
+          <button
+            type="button"
+            className="ml-auto rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+            disabled={items.length === 0}
+            onClick={() => setExportSql(generateAllItemsSql(items))}
+          >
+            Eksport wszystkich ({items.length})
+          </button>
         </div>
 
         <div className="flex flex-1 gap-0">
@@ -717,6 +785,47 @@ export default function AdminRpgPage() {
           </div>
         </div>
       </main>
+
+      {/* ── Export modal ── */}
+      {exportSql && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+          <div className="flex w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl" style={{ maxHeight: '85vh' }}>
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+              <div>
+                <h2 className="text-sm font-bold">Eksport wszystkich itemów</h2>
+                <p className="text-[11px] text-gray-400">
+                  INSERT … ON CONFLICT (code) DO UPDATE — istniejące id nie są nadpisywane
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(exportSql);
+                    setExportCopied(true);
+                    setTimeout(() => setExportCopied(false), 1500);
+                  }}
+                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  {exportCopied ? '✓ Skopiowano' : 'Kopiuj'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportSql('')}
+                  className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Zamknij
+                </button>
+              </div>
+            </div>
+            <textarea
+              readOnly
+              value={exportSql}
+              className="flex-1 overflow-auto rounded-b-xl bg-gray-50 p-4 font-mono text-[11px] leading-relaxed resize-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
