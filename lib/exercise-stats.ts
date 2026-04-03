@@ -24,6 +24,19 @@ export function exerciseKindTagClassName(kind: ExerciseKind): string {
   return `inline-flex w-fit max-w-full shrink-0 items-center self-start rounded-lg px-2 py-0.5 text-xs font-medium ${KIND_TAG_STYLES[kind]}`;
 }
 
+const KIND_BUFF_STYLES: Record<ExerciseKind, string> = {
+  weighted_reps: 'bg-orange-50 text-orange-700 ring-orange-200',
+  bodyweight_reps: 'bg-violet-50 text-violet-700 ring-violet-200',
+  time_based: 'bg-sky-50 text-sky-700 ring-sky-200',
+  distance_per_time: 'bg-rose-50 text-rose-700 ring-rose-200',
+};
+
+export function kindBuffBadgeClassName(kind: ExerciseKind | 'total'): string {
+  const base = 'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset';
+  if (kind === 'total') return `${base} bg-amber-50 text-amber-700 ring-amber-200`;
+  return `${base} ${KIND_BUFF_STYLES[kind]}`;
+}
+
 export function resolveExerciseKind(ex: Exercise): ExerciseKind {
   return ex.kind;
 }

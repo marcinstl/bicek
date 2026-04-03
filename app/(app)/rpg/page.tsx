@@ -17,8 +17,17 @@ import {
 import { isOfflineMode, tryDiscoverItems } from '@/lib/api-router';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
-import type { ExerciseKind, RpgRequirement } from '@/lib/types';
-import { getExerciseKindTitle } from '@/lib/exercise-stats';
+import { applyXpRates, applyKindRate } from '@/lib/rpg/buffs';
+import type { ExerciseKind, RpgRequirement, XpRates } from '@/lib/types';
+import { getExerciseKindTitle, kindBuffBadgeClassName } from '@/lib/exercise-stats';
+
+const DEFAULT_XP_RATES: XpRates = {
+  weighted_reps: 100,
+  bodyweight_reps: 100,
+  time_based: 100,
+  distance_per_time: 100,
+  total: 100,
+};
 
 type RpgEvent = {
   key: string;
@@ -28,6 +37,7 @@ type RpgEvent = {
   planName: string;
   gainedXp: number;
   levelUpLabel: string | null;
+  xpRates: XpRates;
 };
 
 const KIND_ORDER: ExerciseKind[] = [
@@ -47,9 +57,9 @@ const KIND_BAR_FILL_CLASS: Record<ExerciseKind, string> = {
 const EQUIPMENT_SLOTS = [
   { id: 'slot-coin', row: 1, col: 1 },
   { id: 'slot-head', row: 1, col: 2 },
-  { id: 'slot-armor', row: 1, col: 3 },
+  { id: 'slot-potion', row: 1, col: 3 },
   { id: 'slot-weapon', row: 2, col: 1 },
-  { id: 'slot-chest', row: 2, col: 2 },
+  { id: 'slot-armor', row: 2, col: 2 },
   { id: 'slot-shield', row: 2, col: 3 },
   { id: 'slot-ring', row: 3, col: 1 },
   { id: 'slot-legs', row: 3, col: 2 },
@@ -70,6 +80,15 @@ function formatEventDate(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatBuff(buff: import('@/lib/types').RpgItemBuff): { label: string; className: string } {
+  const kind = buff.kind ?? 'total';
+  const kindLabel = kind !== 'total' ? getExerciseKindTitle(kind as ExerciseKind) : 'Global';
+  return {
+    label: `+${buff.value}% ${kindLabel} XP`,
+    className: kindBuffBadgeClassName(kind),
+  };
 }
 
 function formatRequirement(req: RpgRequirement): string {
@@ -210,26 +229,59 @@ export default function RpgPage() {
     void equipMutation.mutateAsync({ item_id: itemId });
   };
 
-  const totalXp = useMemo(() => {
-    return sets.reduce((sum, set) => {
-      if (set.xp != null) return sum + set.xp;
-      return sum + computeSetXp(set.exercises.kind, set);
-    }, 0);
-  }, [sets]);
+  // Compute effective XP per workout (applying xp_rates buffs) and aggregate totals
+  const xpStats = useMemo(() => {
+    const setsByWorkout = new Map<string, typeof sets>();
+    for (const set of sets) {
+      const arr = setsByWorkout.get(set.workout_id);
+      if (arr) arr.push(set);
+      else setsByWorkout.set(set.workout_id, [set]);
+    }
 
-  const kindTotals = useMemo(() => {
-    const totals: Record<ExerciseKind, number> = {
+    let totalXp = 0;
+    const kindTotals: Record<ExerciseKind, number> = {
       weighted_reps: 0,
       bodyweight_reps: 0,
       time_based: 0,
       distance_per_time: 0,
     };
-    for (const set of sets) {
-      const xp = set.xp ?? computeSetXp(set.exercises.kind, set);
-      totals[set.exercises.kind] += xp;
+    const workoutEffectiveXp = new Map<string, number>();
+
+    for (const workout of history) {
+      const workoutSets = setsByWorkout.get(workout.id) ?? [];
+      const baseKindXp: Record<ExerciseKind, number> = {
+        weighted_reps: 0,
+        bodyweight_reps: 0,
+        time_based: 0,
+        distance_per_time: 0,
+      };
+      for (const set of workoutSets) {
+        const xp = set.xp ?? computeSetXp(set.exercises.kind, set);
+        baseKindXp[set.exercises.kind] += xp;
+      }
+
+      const rates = (workout.xp_rates ?? DEFAULT_XP_RATES) as XpRates;
+
+      // Total XP for overall level: only total rate applies
+      const workoutEffective = applyXpRates(baseKindXp, rates);
+      workoutEffectiveXp.set(workout.id, workoutEffective);
+      totalXp += workoutEffective;
+
+      // Per-kind totals: each kind uses its own rate (independent of total)
+      for (const kind of KIND_ORDER) {
+        kindTotals[kind] += applyKindRate(baseKindXp[kind], rates[kind]);
+      }
     }
-    return totals;
-  }, [sets]);
+
+    const workoutXpRates = new Map<string, XpRates>(
+      history.map((w) => [w.id, (w.xp_rates ?? DEFAULT_XP_RATES) as XpRates])
+    );
+
+    return { totalXp, kindTotals, workoutEffectiveXp, workoutXpRates, setsByWorkout };
+  }, [history, sets]);
+
+  const totalXp = xpStats.totalXp;
+  const kindTotals = xpStats.kindTotals;
 
 
   const progress = getLevelProgress(totalXp);
@@ -242,12 +294,7 @@ export default function RpgPage() {
   const events = useMemo<RpgEvent[]>(() => {
     if (loading) return [];
 
-    const setsByWorkout = new Map<string, typeof sets>();
-    for (const set of sets) {
-      const arr = setsByWorkout.get(set.workout_id);
-      if (arr) arr.push(set);
-      else setsByWorkout.set(set.workout_id, [set]);
-    }
+    const { workoutEffectiveXp, workoutXpRates } = xpStats;
 
     const ordered = [...history].sort((a, b) => {
       const aMs = new Date(a.ended_at ?? a.started_at).getTime();
@@ -259,20 +306,7 @@ export default function RpgPage() {
 
     for (const workout of ordered) {
       const afterLevel = getLevelProgress(cumulativeXp).level;
-      const workoutSets = setsByWorkout.get(workout.id) ?? [];
-      const byKind: Record<ExerciseKind, number> = {
-        weighted_reps: 0,
-        bodyweight_reps: 0,
-        time_based: 0,
-        distance_per_time: 0,
-      };
-
-      for (const set of workoutSets) {
-        const xp = set.xp ?? computeSetXp(set.exercises.kind, set);
-        byKind[set.exercises.kind] += xp;
-      }
-
-      const workoutXp = Object.values(byKind).reduce((sum, n) => sum + n, 0);
+      const workoutXp = workoutEffectiveXp.get(workout.id) ?? 0;
       cumulativeXp -= workoutXp;
       const beforeLevel = getLevelProgress(Math.max(0, cumulativeXp)).level;
 
@@ -290,6 +324,7 @@ export default function RpgPage() {
         planName,
         gainedXp: workoutXp,
         levelUpLabel,
+        xpRates: workoutXpRates.get(workout.id) ?? DEFAULT_XP_RATES,
       });
     }
 
@@ -299,7 +334,7 @@ export default function RpgPage() {
         return a.key.localeCompare(b.key);
       })
       .slice(0, 10);
-  }, [history, loading, sets, totalXp]);
+  }, [history, loading, xpStats, totalXp]);
 
   return (
     <div className="relative pb-28">
@@ -381,9 +416,30 @@ export default function RpgPage() {
                     );
                   })() : null}
                 </div>
-
               ))}
             </div>
+            {(() => {
+              const activeBuffs: { buff: import('@/lib/types').RpgItemBuff }[] = [];
+              for (const itemId of Object.values(equippedBySlot)) {
+                if (!itemId) continue;
+                const item = itemById.get(itemId);
+                for (const buff of item?.buffs ?? []) {
+                  activeBuffs.push({ buff });
+                }
+              }
+              if (activeBuffs.length === 0) return null;
+              return (
+                <div className="mt-3 self-start w-full">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Aktywne buffy</p>
+                  <div className="flex flex-wrap gap-1">
+                    {activeBuffs.map(({ buff }, i) => {
+                      const { label, className } = formatBuff(buff);
+                      return <span key={i} className={className}>{label}</span>;
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -404,7 +460,19 @@ export default function RpgPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900">{event.planName}</p>
-                    <p className="mt-0.5 text-xs text-gray-600">{event.gainedXp} Exp</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-gray-600">{event.gainedXp} Exp</span>
+                      {event.xpRates.total > 100 && (
+                        <span className={kindBuffBadgeClassName('total')}>
+                          ×{(event.xpRates.total / 100).toFixed(1)} total
+                        </span>
+                      )}
+                      {KIND_ORDER.filter((k) => event.xpRates[k] > 100).map((k) => (
+                        <span key={k} className={kindBuffBadgeClassName(k)}>
+                          ×{(event.xpRates[k] / 100).toFixed(1)} {getExerciseKindTitle(k)}
+                        </span>
+                      ))}
+                    </div>
                     <p className="mt-1 text-[11px] text-gray-400">{formatEventDate(event.timestamp)}</p>
                   </div>
                   <div className="shrink-0">
@@ -478,6 +546,14 @@ export default function RpgPage() {
                           {formatRequirement(req)}
                         </span>
                       ))}
+                    </div>
+                  )}
+                  {isDiscovered && item.buffs && item.buffs.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {item.buffs.map((buff, idx) => {
+                        const { label, className } = formatBuff(buff);
+                        return <span key={idx} className={className}>{label}</span>;
+                      })}
                     </div>
                   )}
                 </div>

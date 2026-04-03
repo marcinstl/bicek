@@ -27,6 +27,7 @@ export interface Workout {
   started_at: string;
   ended_at: string | null;
   created_at: string;
+  xp_rates?: XpRates | null;
 }
 
 export interface WorkoutWithPlan extends Workout {
@@ -103,6 +104,28 @@ export interface SpritePosition {
   row: number;
 }
 
+export interface RpgItemBuff {
+  type: 'xp_rate';
+  kind?: ExerciseKind | 'total';
+  value: number;
+}
+
+export interface XpRates {
+  weighted_reps: number;
+  bodyweight_reps: number;
+  time_based: number;
+  distance_per_time: number;
+  total: number;
+}
+
+export const DEFAULT_XP_RATES: XpRates = {
+  weighted_reps: 100,
+  bodyweight_reps: 100,
+  time_based: 100,
+  distance_per_time: 100,
+  total: 100,
+};
+
 export interface RpgDiscoveredItem {
   id: string;
   eq_slot: string;
@@ -111,6 +134,7 @@ export interface RpgDiscoveredItem {
   item_type?: string;
   requirements?: RpgRequirement[];
   sprite_positions?: SpritePosition[] | null;
+  buffs?: RpgItemBuff[];
 }
 
 export interface RpgItemDiscoveryRow {

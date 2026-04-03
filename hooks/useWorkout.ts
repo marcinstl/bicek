@@ -98,7 +98,7 @@ export function useFinishWorkout(planId: string) {
 
   return useMutation({
     mutationFn: (workoutId: string) => finishWorkout(workoutId),
-    onSuccess: () => {
+    onSuccess: (_data, workoutId) => {
       // Keep UI consistent immediately after finishing workout.
       queryClient.setQueryData(workoutKeys.active(planId), null);
       queryClient.setQueryData(ACTIVE_WORKOUT_KEY, null);
@@ -106,6 +106,13 @@ export function useFinishWorkout(planId: string) {
       queryClient.invalidateQueries({ queryKey: workoutKeys.history() });
       queryClient.invalidateQueries({
         predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('exercise-history-all'),
+      });
+
+      // Apply buff-based xp_rates for this workout (fire-and-forget)
+      void fetch('/api/rpg/apply-workout-buffs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workoutId }),
       });
     },
   });

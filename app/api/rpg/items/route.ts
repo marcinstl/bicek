@@ -19,7 +19,7 @@ export async function GET() {
   const [itemsResult, discoveriesResult] = await Promise.all([
     supabase
       .from('rpg_items')
-      .select('id,eq_slot,spritesheet_path,name,type,sprite_positions,rpg_item_requirements(type,level,kind,xp,count,secret)')
+      .select('id,eq_slot,spritesheet_path,name,type,sprite_positions,buffs,rpg_item_requirements(type,level,kind,xp,count,secret)')
       .not('sprite_positions', 'is', null)
       .order('created_at', { ascending: true }),
     supabase
@@ -47,6 +47,7 @@ export async function GET() {
       item_type: isDiscovered ? item.type : null,
       requirements: sanitizeRequirements(reqs),
       sprite_positions: item.sprite_positions as import('@/lib/types').SpritePosition[],
+      buffs: isDiscovered ? (item.buffs as import('@/lib/types').RpgItemBuff[] ?? []) : [],
     };
   });
 
