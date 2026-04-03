@@ -5,8 +5,7 @@ import type {
   Workout,
   Set,
   RpgDiscoveredItem,
-  RpgEquipmentRow,
-  RpgItemDiscoveryRow,
+  RpgInventoryRow,
 } from '@/lib/types';
 import { computeSetXp } from '@/lib/rpg/xp';
 
@@ -38,12 +37,12 @@ interface BicekDB extends DBSchema {
   };
   rpg_equipment: {
     key: string;
-    value: RpgEquipmentRow;
+    value: RpgInventoryRow;
     indexes: { by_user: string };
   };
   rpg_item_discoveries: {
     key: string;
-    value: RpgItemDiscoveryRow;
+    value: { id: string; user_id: string; item_id: string; discovered_at: string };
     indexes: { by_user: string; by_user_item: [string, string] };
   };
 }
@@ -149,7 +148,7 @@ export async function mirrorRpgItems(items: RpgDiscoveredItem[]): Promise<void> 
   await tx.done;
 }
 
-export async function mirrorRpgEquipment(rows: RpgEquipmentRow[]): Promise<void> {
+export async function mirrorRpgEquipment(rows: RpgInventoryRow[]): Promise<void> {
   const db = await getDb();
   const tx = db.transaction('rpg_equipment', 'readwrite');
   await tx.store.clear();
@@ -159,7 +158,7 @@ export async function mirrorRpgEquipment(rows: RpgEquipmentRow[]): Promise<void>
   await tx.done;
 }
 
-export async function mirrorUpsertRpgEquipment(row: RpgEquipmentRow): Promise<void> {
+export async function mirrorUpsertRpgEquipment(row: RpgInventoryRow): Promise<void> {
   const db = await getDb();
   await db.put('rpg_equipment', row);
 }

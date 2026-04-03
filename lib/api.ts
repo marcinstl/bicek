@@ -20,9 +20,9 @@ import type {
   UpdateExerciseInput,
   AddSetInput,
   RpgDiscoveredItem,
-  RpgItemDiscoveryRow,
-  RpgEquipmentRow,
-  RpgEquipmentWithItem,
+  RpgInventoryRow,
+  RpgInventoryWithItem,
+  RpgHunt,
 } from '@/lib/types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -252,44 +252,53 @@ export async function getRpgItems(): Promise<RpgDiscoveredItem[]> {
   return items;
 }
 
-export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
+export async function getRpgInventory(): Promise<RpgInventoryWithItem[]> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from('rpg_equipment')
-    .select('*, item:rpg_items(id,eq_slot,spritesheet_path,sprite_positions)')
+    .from('rpg_inventory')
+    .select('*, item:rpg_items(id,eq_slot,spritesheet_path,sprite_positions,rarity)')
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  const rows = (data ?? []) as RpgEquipmentWithItem[];
-  await mirrorRpgEquipment(rows.map((entry) => {
-    const { item, ...row } = entry;
-    void item;
-    return row;
-  }));
-  return rows;
+  return (data ?? []) as RpgInventoryWithItem[];
 }
 
-export async function equipRpgItem(input: { item_id: string }): Promise<RpgEquipmentRow> {
+export async function equipRpgItem(input: { item_id: string }): Promise<RpgInventoryRow> {
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) throw new Error('Not authenticated');
 
-  // Trigger rpg_equipment_one_per_slot handles removing the old item in the same slot.
-  const { data, error } = await supabase
-    .from('rpg_equipment')
-    .upsert(
-      {
-        user_id: userData.user.id,
-        item_id: input.item_id,
-        equipped_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,item_id' }
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  const row = data as RpgEquipmentRow;
-  await mirrorUpsertRpgEquipment(row);
+  // Find the inventory row for this item (could be in bag) and set equipped=true.
+  // If not in bag, insert a new equipped row.
+  // The trigger rpg_inventory_enforce_one_per_slot unequips any other item in the same slot.
+  const { data: existing } = await supabase
+    .from('rpg_inventory')
+    .select('id')
+    .eq('user_id', userData.user.id)
+    .eq('item_id', input.item_id)
+    .eq('equipped', false)
+    .limit(1)
+    .maybeSingle();
+
+  let row: RpgInventoryRow;
+  if (existing) {
+    const { data, error } = await supabase
+      .from('rpg_inventory')
+      .update({ equipped: true })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    row = data as RpgInventoryRow;
+  } else {
+    const { data, error } = await supabase
+      .from('rpg_inventory')
+      .insert({ user_id: userData.user.id, item_id: input.item_id, equipped: true })
+      .select()
+      .single();
+    if (error) throw error;
+    row = data as RpgInventoryRow;
+  }
   return row;
 }
 
@@ -300,33 +309,40 @@ export async function unequipRpgItem(itemId: string): Promise<void> {
   if (!userData.user) throw new Error('Not authenticated');
 
   const { error } = await supabase
-    .from('rpg_equipment')
-    .delete()
+    .from('rpg_inventory')
+    .update({ equipped: false })
     .eq('user_id', userData.user.id)
-    .eq('item_id', itemId);
+    .eq('item_id', itemId)
+    .eq('equipped', true);
   if (error) throw error;
-  await mirrorDeleteRpgEquipmentByItemId(userData.user.id, itemId);
 }
 
-export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('rpg_item_discoveries')
-    .select('*')
-    .order('discovered_at', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as RpgItemDiscoveryRow[];
+export async function getActiveHunt(): Promise<RpgHunt | null> {
+  const res = await fetch('/api/rpg/hunt');
+  if (!res.ok) return null;
+  return (await res.json()) as RpgHunt | null;
 }
 
-export async function tryDiscoverItems(): Promise<string[]> {
-  const res = await fetch('/api/rpg/discover', { method: 'POST' });
+export async function startHunt(rarity: string): Promise<RpgHunt> {
+  const res = await fetch('/api/rpg/hunt/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rarity }),
+  });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    console.error('[tryDiscoverItems] error', res.status, body);
-    return [];
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? 'Failed to start hunt');
   }
-  const json = (await res.json()) as { newly_discovered?: string[] };
-  return json.newly_discovered ?? [];
+  return (await res.json()) as RpgHunt;
+}
+
+export async function collectHunt(): Promise<{ reward_item_ids: string[]; items: unknown[] }> {
+  const res = await fetch('/api/rpg/hunt/collect', { method: 'POST' });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? 'Failed to collect hunt');
+  }
+  return res.json() as Promise<{ reward_item_ids: string[]; items: unknown[] }>;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

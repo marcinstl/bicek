@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { SpriteIcon } from '@/components/SpriteIcon';
 import Link from 'next/link';
-import { useQueryClient } from '@tanstack/react-query';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import {
   useEquipRpgItem,
-  useRpgDiscoveries,
-  useRpgEquipment,
+  useRpgInventory,
   useRpgItems,
   useUnequipRpgItem,
+  useActiveHunt,
+  useStartHunt,
+  useCollectHunt,
   rpgKeys,
-} from '@/hooks/useRpgEquipment';
-import { isOfflineMode, tryDiscoverItems } from '@/lib/api-router';
+} from '@/hooks/useRpgInventory';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
 import { applyXpRates, applyKindRate } from '@/lib/rpg/buffs';
-import type { ExerciseKind, RpgRequirement, XpRates } from '@/lib/types';
+import { HUNT_CONFIGS, RARITY_LABELS, RARITY_LOOT_PREVIEW } from '@/lib/rpg/hunts';
+import type { ExerciseKind, RpgRarity, RpgRequirement, XpRates } from '@/lib/types';
 import { getExerciseKindTitle, kindBuffBadgeClassName } from '@/lib/exercise-stats';
 
 const DEFAULT_XP_RATES: XpRates = {
@@ -69,8 +70,6 @@ const EQUIPMENT_SLOTS = [
 
 type EquipmentSlotId = (typeof EQUIPMENT_SLOTS)[number]['id'];
 type EquippedBySlot = Partial<Record<EquipmentSlotId, string>>;
-const EQUIPMENT_STORAGE_KEY = 'rpg-equipment-v1';
-const EQUIPMENT_MIGRATION_KEY = 'rpg-equipment-migrated-v1';
 
 function formatEventDate(iso: string): string {
   const d = new Date(iso);
@@ -100,6 +99,25 @@ function formatRequirement(req: RpgRequirement): string {
     case 'secret': return '???';
     default: return '???';
   }
+}
+
+const HUNT_RARITY_STYLES: Record<RpgRarity, { border: string; bg: string; fill: string; text: string; badge: string }> = {
+  common:    { border: 'border-gray-300',   bg: 'bg-gray-100',   fill: 'bg-gray-400',   text: 'text-gray-700',   badge: 'bg-gray-100 text-gray-600 ring-gray-200' },
+  uncommon:  { border: 'border-green-400',  bg: 'bg-green-50',   fill: 'bg-green-500',  text: 'text-green-700',  badge: 'bg-green-50 text-green-700 ring-green-200' },
+  rare:      { border: 'border-blue-400',   bg: 'bg-blue-50',    fill: 'bg-blue-500',   text: 'text-blue-700',   badge: 'bg-blue-50 text-blue-700 ring-blue-200' },
+  epic:      { border: 'border-purple-400', bg: 'bg-purple-50',  fill: 'bg-purple-500', text: 'text-purple-700', badge: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  legendary: { border: 'border-yellow-400', bg: 'bg-yellow-50',  fill: 'bg-yellow-500', text: 'text-yellow-700', badge: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
+};
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const hms = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return days > 0 ? `${days}d ${hms}` : hms;
 }
 
 function FilterDropdown({
@@ -202,165 +220,101 @@ function Checkbox({ checked }: { checked: boolean }) {
 }
 
 export default function RpgPage() {
-  const offline = isOfflineMode();
-  const queryClient = useQueryClient();
   const { data: history = [], isLoading: historyLoading } = useWorkoutHistory();
   const workoutIds = useMemo(() => history.map((w) => w.id), [history]);
   const { data: sets = [], isLoading: setsLoading } = useSetsForWorkouts(workoutIds, workoutIds.length > 0);
-  const { data: items = [], isLoading: itemsLoading } = useRpgItems();
-  const { data: discoveries = [], isLoading: discoveriesLoading } = useRpgDiscoveries();
-  const { data: equipmentRows = [], isLoading: equipmentLoading } = useRpgEquipment();
+  const { data: items = [] } = useRpgItems();
+  const { data: inventoryRows = [] } = useRpgInventory();
+  const { data: activeHunt } = useActiveHunt();
   const equipMutation = useEquipRpgItem();
   const unequipMutation = useUnequipRpgItem();
+  const startHuntMutation = useStartHunt();
+  const collectHuntMutation = useCollectHunt();
 
-  const [localEquippedBySlot, setLocalEquippedBySlot] = useState<EquippedBySlot>({});
-  const [equipmentHydrated, setEquipmentHydrated] = useState(false);
-  const [migrationAttempted, setMigrationAttempted] = useState(false);
   const [showTotalExp, setShowTotalExp] = useState(true);
-  const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  const [menuRowId, setMenuRowId] = useState<string | null>(null); // inventory row id
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [invSlotFilter, setInvSlotFilter] = useState<Set<string> | null>(null);
   const [invBuffFilter, setInvBuffFilter] = useState<Set<string> | null>(null);
+  const [invRarityFilter, setInvRarityFilter] = useState<Set<string> | null>(null);
   const [compareItemId, setCompareItemId] = useState<string | null>(null);
   const [compareItemBId, setCompareItemBId] = useState<string | null>(null);
 
-  const discoverTriggered = useRef(false);
-  const dataReady = !itemsLoading && !discoveriesLoading && !historyLoading && !(workoutIds.length > 0 && setsLoading);
+  // Hunt UI state
+  const [huntModalOpen, setHuntModalOpen] = useState(false);
+  const [selectedHuntRarity, setSelectedHuntRarity] = useState<RpgRarity | null>(null);
+  const [rewardItems, setRewardItems] = useState<{ id: string; name: string; rarity: RpgRarity; sprite_positions: import('@/lib/types').SpritePosition[] | null }[] | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!dataReady) return;
-    if (discoverTriggered.current) return;
-    discoverTriggered.current = true;
-    void tryDiscoverItems().then((newIds) => {
-      if (newIds.length > 0) {
-        void queryClient.invalidateQueries({ queryKey: rpgKeys.discoveries() });
-        void queryClient.invalidateQueries({ queryKey: rpgKeys.items() });
-      }
-    });
-  }, [dataReady, queryClient]);
+    if (!activeHunt || activeHunt.collected_at) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [activeHunt]);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(EQUIPMENT_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as EquippedBySlot;
-        setLocalEquippedBySlot(parsed);
-      }
-    } catch {
-      // Ignore malformed localStorage data.
-    } finally {
-      setEquipmentHydrated(true);
-    }
-  }, []);
+  const itemById = useMemo(() => new Map(items.map((item) => [item.id, item] as const)), [items]);
 
-  const itemById = useMemo(() => {
-    return new Map(items.map((item) => [item.id, item] as const));
-  }, [items]);
-  const discoveredItemIds = useMemo(() => new Set(discoveries.map((d) => d.item_id)), [discoveries]);
+  // Items the user owns (in inventory, equipped or not)
+  const ownedItemIds = useMemo(() => new Set(inventoryRows.map((r) => r.item_id)), [inventoryRows]);
 
-  const invSlotOptions = useMemo(
-    () => [...new Set(items.filter((i) => discoveredItemIds.has(i.id)).map((i) => i.eq_slot))].sort(),
-    [items, discoveredItemIds],
-  );
-  const invBuffKindOptions = useMemo(() => {
-    const kinds = new Set<string>();
-    let hasNoBuff = false;
-    for (const item of items) {
-      if (!discoveredItemIds.has(item.id)) continue;
-      const buffs = item.buffs ?? [];
-      if (buffs.length === 0) { hasNoBuff = true; continue; }
-      for (const b of buffs) kinds.add(b.kind ?? 'total');
-    }
-    return [...(hasNoBuff ? ['—'] : []), ...[...kinds].sort()];
-  }, [items, discoveredItemIds]);
-
-  const remoteEquippedBySlot = useMemo<EquippedBySlot>(() => {
+  // equippedBySlot — derived from inventory rows where equipped=true
+  const equippedBySlot = useMemo<EquippedBySlot>(() => {
     const mapped: EquippedBySlot = {};
-    for (const row of equipmentRows) {
+    for (const row of inventoryRows) {
+      if (!row.equipped) continue;
       const slot = row.item?.eq_slot as EquipmentSlotId | undefined;
       if (!slot || !EQUIPMENT_SLOTS.some((s) => s.id === slot)) continue;
       mapped[slot] = row.item?.id;
     }
     return mapped;
-  }, [equipmentRows]);
+  }, [inventoryRows]);
 
-  const hasRemoteEquipment = useMemo(
-    () => Object.values(remoteEquippedBySlot).some((code) => typeof code === 'string' && code.length > 0),
-    [remoteEquippedBySlot]
+  const invSlotOptions = useMemo(
+    () => [...new Set(items.filter((i) => ownedItemIds.has(i.id)).map((i) => i.eq_slot))].sort(),
+    [items, ownedItemIds],
+  );
+  const invBuffKindOptions = useMemo(() => {
+    const kinds = new Set<string>();
+    let hasNoBuff = false;
+    for (const item of items) {
+      if (!ownedItemIds.has(item.id)) continue;
+      const buffs = item.buffs ?? [];
+      if (buffs.length === 0) { hasNoBuff = true; continue; }
+      for (const b of buffs) kinds.add(b.kind ?? 'total');
+    }
+    return [...(hasNoBuff ? ['—'] : []), ...[...kinds].sort()];
+  }, [items, ownedItemIds]);
+
+  const RARITY_ORDER_FILTER: RpgRarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const invRarityOptions = useMemo(
+    () => RARITY_ORDER_FILTER.filter((r) =>
+      items.some((i) => ownedItemIds.has(i.id) && i.rarity === r)
+    ),
+    [items, ownedItemIds],
   );
 
-  const equippedBySlot = hasRemoteEquipment ? remoteEquippedBySlot : localEquippedBySlot;
-
-  useEffect(() => {
-    if (!equipmentHydrated) return;
-    window.localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(localEquippedBySlot));
-  }, [localEquippedBySlot, equipmentHydrated]);
-
-  useEffect(() => {
-    if (offline) return;
-    if (!equipmentHydrated) return;
-    if (items.length === 0) return;
-    if (hasRemoteEquipment) return;
-    if (migrationAttempted) return;
-    if (window.localStorage.getItem(EQUIPMENT_MIGRATION_KEY) === 'true') return;
-
-    const localEntries = Object.entries(localEquippedBySlot).filter(
-      (entry): entry is [EquipmentSlotId, string] => typeof entry[1] === 'string' && entry[1].length > 0
-    );
-    if (localEntries.length === 0) {
-      setMigrationAttempted(true);
-      return;
-    }
-
-    // Legacy localStorage migration is no longer supported (items switched to sprite sheet system).
-    setMigrationAttempted(true);
-    window.localStorage.setItem(EQUIPMENT_MIGRATION_KEY, 'true');
-  }, [
-    equipmentHydrated,
-    hasRemoteEquipment,
-    items.length,
-    localEquippedBySlot,
-    migrationAttempted,
-    offline,
-  ]);
-
-  const handleEquipItem = (itemId: string, eqSlot: EquipmentSlotId) => {
-    if (!discoveredItemIds.has(itemId)) return;
-
-    if (offline) {
-      setLocalEquippedBySlot((prev) => {
-        if (prev[eqSlot] === itemId) {
-          const next = { ...prev };
-          delete next[eqSlot];
-          return next;
-        }
-        return { ...prev, [eqSlot]: itemId };
-      });
-      return;
-    }
-
+  const handleEquipItem = useCallback((itemId: string, eqSlot: EquipmentSlotId) => {
+    if (!ownedItemIds.has(itemId)) return;
     const item = itemById.get(itemId);
     if (!item || item.eq_slot !== eqSlot) return;
-
-    const currentCode = equippedBySlot[eqSlot];
-    if (currentCode === itemId) {
+    if (equippedBySlot[eqSlot] === itemId) {
       void unequipMutation.mutateAsync(itemId);
-      return;
+    } else {
+      void equipMutation.mutateAsync({ item_id: itemId });
     }
-    void equipMutation.mutateAsync({ item_id: itemId });
-  };
+  }, [ownedItemIds, itemById, equippedBySlot, unequipMutation, equipMutation]);
 
   useEffect(() => {
-    if (!menuItemId) return;
+    if (!menuRowId) return;
     const handle = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-inventory-menu]')) {
-        setMenuItemId(null);
+        setMenuRowId(null);
       }
     };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
-  }, [menuItemId]);
+  }, [menuRowId]);
 
   // Compute effective XP per workout (applying xp_rates buffs) and aggregate totals
   const xpStats = useMemo(() => {
@@ -420,10 +374,7 @@ export default function RpgPage() {
   const progress = getLevelProgress(totalXp);
   const loading =
     historyLoading ||
-    (workoutIds.length > 0 && setsLoading) ||
-    itemsLoading ||
-    discoveriesLoading ||
-    equipmentLoading;
+    (workoutIds.length > 0 && setsLoading);
   const events = useMemo<RpgEvent[]>(() => {
     if (loading) return [];
 
@@ -531,25 +482,26 @@ export default function RpgPage() {
           <div className="rounded-xl border border-gray-300/80 bg-slate-900/5 p-3 flex flex-col items-center">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 self-start">Equipment</p>
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(3, 56px)', gridTemplateRows: 'repeat(4, 56px)' }}>
-              {EQUIPMENT_SLOTS.map((slot) => (
-                <div
-                  key={slot.id}
-                  className="flex h-14 w-14 items-center justify-center rounded-md border border-gray-300 bg-gray-50"
-                  style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
-                >
-                  {equippedBySlot[slot.id] ? (() => {
-                    const itemId = equippedBySlot[slot.id]!;
-                    const item = itemById.get(itemId);
-                    if (!item?.sprite_positions?.length) return null;
-                    return (
-                      <SpriteIcon
-                        positions={item.sprite_positions}
-                        size={48}
-                      />
-                    );
-                  })() : null}
-                </div>
-              ))}
+              {EQUIPMENT_SLOTS.map((slot) => {
+                const itemId = equippedBySlot[slot.id];
+                const item = itemId ? itemById.get(itemId) : undefined;
+                const rarityStyles = item?.rarity ? HUNT_RARITY_STYLES[item.rarity] : null;
+                return (
+                  <div
+                    key={slot.id}
+                    className={`flex h-14 w-14 items-center justify-center rounded-md border transition-colors ${
+                      rarityStyles
+                        ? `${rarityStyles.border} ${rarityStyles.bg}`
+                        : 'border-gray-300 bg-gray-50'
+                    }`}
+                    style={{ gridColumnStart: slot.col, gridRowStart: slot.row }}
+                  >
+                    {item?.sprite_positions?.length ? (
+                      <SpriteIcon positions={item.sprite_positions} size={48} />
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             {(() => {
               const activeBuffs: { buff: import('@/lib/types').RpgItemBuff }[] = [];
@@ -577,17 +529,197 @@ export default function RpgPage() {
         </div>
       </div>
 
+      {/* ── Hunt section ── */}
+      {(() => {
+        // Compute hunt progress
+        const huntDoneMs = activeHunt
+          ? new Date(activeHunt.started_at).getTime() + activeHunt.duration_hours * 3_600_000
+          : 0;
+        const isHuntDone = activeHunt ? now >= huntDoneMs : false;
+        const huntPct = activeHunt
+          ? Math.min(100, ((now - new Date(activeHunt.started_at).getTime()) / (activeHunt.duration_hours * 3_600_000)) * 100)
+          : 0;
+        const huntRemaining = activeHunt && !isHuntDone ? formatCountdown(huntDoneMs - now) : null;
+        const huntConfig = HUNT_CONFIGS.find((c) => c.rarity === activeHunt?.rarity);
+        const huntStyles = activeHunt ? HUNT_RARITY_STYLES[activeHunt.rarity] : null;
+
+        return (
+          <div className="mt-4">
+            {activeHunt ? (
+              // Active hunt — progress bar button
+              <div>
+                <div className="relative h-10 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                  {/* Fill */}
+                  <div
+                    className={`absolute inset-y-0 left-0 transition-all duration-1000 ${huntStyles?.fill ?? 'bg-gray-400'}`}
+                    style={{ width: `${huntPct}%` }}
+                  />
+                  {/* Label */}
+                  <div className="absolute inset-0 flex items-center justify-center gap-2">
+                    <span className="text-xs font-semibold text-gray-800 drop-shadow-sm">
+                      {huntConfig?.name} — {Math.round(huntPct)}%
+                    </span>
+                    {isHuntDone && (
+                      <button
+                        type="button"
+                        disabled={collectHuntMutation.isPending}
+                        onClick={() => {
+                          void collectHuntMutation.mutateAsync().then((data) => {
+                            const rewarded = (data.items as { id: string; name: string; rarity: string; sprite_positions: import('@/lib/types').SpritePosition[] | null }[])
+                              .map((i) => ({ ...i, rarity: (i.rarity ?? 'common') as RpgRarity }));
+                            setRewardItems(rewarded);
+                          });
+                        }}
+                        className={`rounded-lg px-3 py-1 text-xs font-bold text-white shadow ${huntStyles?.fill ?? 'bg-gray-500'} hover:opacity-90 transition-opacity`}
+                      >
+                        {collectHuntMutation.isPending ? '…' : 'Collect!'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {huntRemaining && (
+                  <p className="mt-1 text-center text-[11px] text-gray-500 tabular-nums">{huntRemaining}</p>
+                )}
+                {isHuntDone && !collectHuntMutation.isPending && (
+                  <p className="mt-1 text-center text-[11px] font-semibold text-green-600">Hunt zakończony! Kliknij Collect!</p>
+                )}
+              </div>
+            ) : (
+              // No active hunt — Hunt button
+              <button
+                type="button"
+                onClick={() => setHuntModalOpen(true)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+              >
+                ⚔️ Hunt
+              </button>
+            )}
+
+            {/* Hunt picker modal */}
+            {huntModalOpen && !activeHunt && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+                  <h2 className="mb-4 text-base font-bold text-gray-900">Wybierz wyprawę</h2>
+                  <div className="flex flex-col gap-2">
+                    {HUNT_CONFIGS.map((cfg) => {
+                      const styles = HUNT_RARITY_STYLES[cfg.rarity];
+                      const isSelected = selectedHuntRarity === cfg.rarity;
+                      return (
+                        <button
+                          key={cfg.rarity}
+                          type="button"
+                          onClick={() => setSelectedHuntRarity(cfg.rarity)}
+                          className={`flex items-start gap-3 rounded-xl border-l-4 px-3 py-2.5 text-left transition-colors ${styles.border} ${isSelected ? `${styles.bg} ring-1 ring-inset ${styles.border}` : 'bg-white hover:bg-gray-50'}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{cfg.name}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${styles.badge}`}>
+                                {RARITY_LABELS[cfg.rarity]}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              {cfg.duration_hours >= 24
+                                ? `${cfg.duration_hours / 24}d`
+                                : cfg.duration_hours < 1
+                                  ? `${cfg.duration_hours * 60} min`
+                                  : `${cfg.duration_hours}h`}
+                              {' · '}
+                              {cfg.item_count_min === cfg.item_count_max
+                                ? `${cfg.item_count_min} item`
+                                : `${cfg.item_count_min}–${cfg.item_count_max} items`}
+                            </p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{RARITY_LOOT_PREVIEW[cfg.rarity]}</p>
+                          </div>
+                          {isSelected && (
+                            <svg className={`mt-0.5 h-4 w-4 shrink-0 ${styles.text}`} fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setHuntModalOpen(false); setSelectedHuntRarity(null); }}
+                      className="flex-1 rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedHuntRarity || startHuntMutation.isPending}
+                      onClick={() => {
+                        if (!selectedHuntRarity) return;
+                        void startHuntMutation.mutateAsync(selectedHuntRarity).then(() => {
+                          setHuntModalOpen(false);
+                          setSelectedHuntRarity(null);
+                        });
+                      }}
+                      className="flex-1 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                    >
+                      {startHuntMutation.isPending ? '…' : 'Start'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Reward modal */}
+            {rewardItems && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+                  <h2 className="mb-4 text-base font-bold text-gray-900">🎉 Zdobyte przedmioty!</h2>
+                  {rewardItems.length === 0 ? (
+                    <p className="text-sm text-gray-500 mb-4">Brak łupów.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2 mb-4">
+                      {rewardItems.map((item, idx) => {
+                        const styles = HUNT_RARITY_STYLES[item.rarity];
+                        return (
+                          <div key={idx} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${styles.border} ${styles.bg}`}>
+                            {item.sprite_positions && item.sprite_positions.length > 0 ? (
+                              <SpriteIcon positions={item.sprite_positions} size={40} />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-gray-100" />
+                            )}
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                              <span className={`text-[10px] font-semibold ${styles.text}`}>{RARITY_LABELS[item.rarity]}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setRewardItems(null)}
+                    className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors"
+                  >
+                    Zamknij
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Inventory */}
       <section className="mt-4 rounded-2xl border border-gray-100/90 bg-white/85 backdrop-blur-sm shadow-sm p-4">
         {(() => {
-          const discoveryByItemId = new Map(discoveries.map((d) => [d.item_id, d]));
-          const discovered = items
-            .filter((item) => discoveredItemIds.has(item.id))
-            .sort((a, b) => {
-              const da = discoveryByItemId.get(a.id)?.discovered_at ?? '';
-              const db = discoveryByItemId.get(b.id)?.discovered_at ?? '';
-              return db.localeCompare(da);
-            });
+          // One entry per inventory row (duplicates show as separate icons)
+          type InvEntry = { row: (typeof inventoryRows)[number]; item: (typeof items)[number] };
+          const inventoryEntries: InvEntry[] = inventoryRows
+            .map((row) => ({ row, item: itemById.get(row.item_id) }))
+            .filter((e): e is InvEntry => e.item != null)
+            .sort((a, b) => b.row.equipped_at.localeCompare(a.row.equipped_at));
+
+          // Still needed for detail/compare lookup (unique items by id)
+          const discovered = items.filter((item) => ownedItemIds.has(item.id));
 
           const detailItem = detailItemId ? discovered.find((i) => i.id === detailItemId) ?? null : null;
           const compareItem = compareItemId ? discovered.find((i) => i.id === compareItemId) ?? null : null;
@@ -667,37 +799,21 @@ export default function RpgPage() {
                       <p className="mb-2 text-[10px] font-medium text-gray-400 uppercase tracking-wide">Pick to compare</p>
                       <div className="flex flex-wrap gap-2">
                         {discovered.map((item) => {
-                          const isMenuOpen = menuItemId === item.id;
                           const isLeft = item.id === compareItem.id;
                           return (
-                            <div key={item.id} className="relative" data-inventory-menu>
-                              <button
-                                type="button"
-                                onClick={() => isLeft ? undefined : setMenuItemId(isMenuOpen ? null : item.id)}
-                                disabled={isLeft}
-                                className={`flex h-14 w-14 items-center justify-center rounded-xl border transition-colors ${
-                                  isLeft
-                                    ? 'border-blue-300 bg-blue-100 opacity-40 cursor-not-allowed'
-                                    : 'border-gray-200 bg-white hover:border-gray-300'
-                                }`}
-                              >
-                                <SpriteIcon positions={item.sprite_positions!} size={48} />
-                              </button>
-                              {isMenuOpen && !isLeft && (
-                                <div
-                                  className="absolute bottom-full left-0 z-20 mb-1.5 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
-                                  data-inventory-menu
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => { setCompareItemBId(item.id); setMenuItemId(null); }}
-                                    className="flex w-full items-center whitespace-nowrap px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                                  >
-                                    Compare
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            <button
+                              key={item.id}
+                              type="button"
+                              disabled={isLeft}
+                              onClick={() => { if (!isLeft) setCompareItemBId(item.id); }}
+                              className={`flex h-14 w-14 items-center justify-center rounded-xl border transition-colors ${
+                                isLeft
+                                  ? 'border-blue-300 bg-blue-100 opacity-40 cursor-not-allowed'
+                                  : 'border-gray-200 bg-white hover:border-gray-300'
+                              }`}
+                            >
+                              <SpriteIcon positions={item.sprite_positions!} size={48} />
+                            </button>
                           );
                         })}
                       </div>
@@ -783,15 +899,27 @@ export default function RpgPage() {
               return next.size === invBuffKindOptions.length ? null : next;
             });
           };
+          const toggleRarity = (opt: string) => {
+            setInvRarityFilter((prev) => {
+              const cur = prev ?? new Set(invRarityOptions);
+              const next = new Set(cur);
+              if (next.has(opt)) next.delete(opt); else next.add(opt);
+              if (next.size === 0) return new Set([opt]);
+              return next.size === invRarityOptions.length ? null : next;
+            });
+          };
           const formatBuffKind = (k: string) => {
             if (k === '—') return 'No buff';
             if (k === 'total') return 'Global XP';
             try { return getExerciseKindTitle(k as ExerciseKind); } catch { return k; }
           };
+          const formatRarity = (r: string) =>
+            r.charAt(0).toUpperCase() + r.slice(1);
 
-          const applyFilters = (list: typeof discovered) =>
-            list.filter((item) => {
+          const applyFilters = (list: InvEntry[]) =>
+            list.filter(({ item }) => {
               if (invSlotFilter !== null && !invSlotFilter.has(item.eq_slot)) return false;
+              if (invRarityFilter !== null && item.rarity && !invRarityFilter.has(item.rarity)) return false;
               if (invBuffFilter !== null) {
                 const kinds = (item.buffs ?? []).map((b) => b.kind ?? 'total');
                 if (kinds.length === 0) return invBuffFilter.has('—');
@@ -800,23 +928,20 @@ export default function RpgPage() {
               return true;
             });
 
-          const equipped = applyFilters(
-            discovered.filter((item) => equippedBySlot[item.eq_slot as EquipmentSlotId] === item.id)
-          );
-          const unequipped = applyFilters(
-            discovered.filter((item) => equippedBySlot[item.eq_slot as EquipmentSlotId] !== item.id)
-          );
+          const equippedEntries = applyFilters(inventoryEntries.filter((e) => e.row.equipped));
+          const unequippedEntries = applyFilters(inventoryEntries.filter((e) => !e.row.equipped));
 
-          const renderIconGrid = (itemList: typeof discovered) => (
+          const renderIconGrid = (entryList: InvEntry[]) => (
             <div className="flex flex-wrap gap-2">
-              {itemList.map((item) => {
-                const isMenuOpen = menuItemId === item.id;
+              {entryList.map(({ row, item }) => {
+                const isMenuOpen = menuRowId === row.id;
+                const rarityStyles = item.rarity ? HUNT_RARITY_STYLES[item.rarity] : null;
                 return (
-                  <div key={item.id} className="relative" data-inventory-menu>
+                  <div key={row.id} className="relative" data-inventory-menu>
                     <button
                       type="button"
-                      onClick={() => setMenuItemId(isMenuOpen ? null : item.id)}
-                      className="relative flex h-14 w-14 items-center justify-center rounded-xl border border-gray-200 bg-white transition-colors hover:border-gray-300"
+                      onClick={() => setMenuRowId(isMenuOpen ? null : row.id)}
+                      className={`relative flex h-14 w-14 items-center justify-center rounded-xl border transition-colors ${rarityStyles ? `${rarityStyles.border} ${rarityStyles.bg}` : 'border-gray-200 bg-white hover:border-gray-300'}`}
                     >
                       <SpriteIcon positions={item.sprite_positions!} size={48} />
                     </button>
@@ -828,19 +953,23 @@ export default function RpgPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            handleEquipItem(item.id, item.eq_slot as EquipmentSlotId);
-                            setMenuItemId(null);
+                            if (row.equipped) {
+                              void unequipMutation.mutateAsync(row.item_id);
+                            } else {
+                              void equipMutation.mutateAsync({ item_id: row.item_id });
+                            }
+                            setMenuRowId(null);
                           }}
                           className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                         >
-                          {equippedBySlot[item.eq_slot as EquipmentSlotId] === item.id ? 'Unequip' : 'Equip'}
+                          {row.equipped ? 'Unequip' : 'Equip'}
                         </button>
                         <div className="border-t border-gray-100" />
                         <button
                           type="button"
                           onClick={() => {
                             setDetailItemId(item.id);
-                            setMenuItemId(null);
+                            setMenuRowId(null);
                           }}
                           className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                         >
@@ -852,7 +981,7 @@ export default function RpgPage() {
                           onClick={() => {
                             setCompareItemId(item.id);
                             setCompareItemBId(null);
-                            setMenuItemId(null);
+                            setMenuRowId(null);
                           }}
                           className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                         >
@@ -881,6 +1010,16 @@ export default function RpgPage() {
                       formatOption={(s) => s.replace('slot-', '')}
                     />
                   )}
+                  {invRarityOptions.length > 0 && (
+                    <FilterDropdown
+                      label="Rarity"
+                      options={invRarityOptions}
+                      selected={invRarityFilter}
+                      onToggle={toggleRarity}
+                      onToggleAll={() => setInvRarityFilter(null)}
+                      formatOption={formatRarity}
+                    />
+                  )}
                   {invBuffKindOptions.length > 0 && (
                     <FilterDropdown
                       label="Buffs"
@@ -897,21 +1036,21 @@ export default function RpgPage() {
                 <p className="mt-3 text-sm text-gray-400">Brak przedmiotów.</p>
               ) : (
                 <>
-                  {equipped.length > 0 && (
+                  {equippedEntries.length > 0 && (
                     <div className="mt-3">
                       <p className="mb-2 text-xs font-medium text-gray-500">Equipped</p>
-                      {renderIconGrid(equipped)}
+                      {renderIconGrid(equippedEntries)}
                     </div>
                   )}
-                  {unequipped.length > 0 && (
-                    <div className={equipped.length > 0 ? 'mt-3 border-t border-gray-100 pt-3' : 'mt-3'}>
-                      {equipped.length > 0 && (
+                  {unequippedEntries.length > 0 && (
+                    <div className={equippedEntries.length > 0 ? 'mt-3 border-t border-gray-100 pt-3' : 'mt-3'}>
+                      {equippedEntries.length > 0 && (
                         <p className="mb-2 text-xs font-medium text-gray-500">Bag</p>
                       )}
-                      {renderIconGrid(unequipped)}
+                      {renderIconGrid(unequippedEntries)}
                     </div>
                   )}
-                  {equipped.length === 0 && unequipped.length === 0 && (
+                  {equippedEntries.length === 0 && unequippedEntries.length === 0 && (
                     <p className="mt-3 text-sm text-gray-400">Brak wyników dla wybranych filtrów.</p>
                   )}
                 </>

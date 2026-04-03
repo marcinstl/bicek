@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SpritePosition } from '@/lib/types';
+import type { SpritePosition, RpgRarity } from '@/lib/types';
 
 // ─── Equipment slots ──────────────────────────────────────────────────────────
 const EQUIPMENT_SLOTS = [
@@ -26,7 +26,7 @@ const CELL = 32;
 const COLS = SHEET_W / CELL;   // 16
 const ROWS = SHEET_H / CELL;   // 50
 const PREVIEW_SIZE = 56;
-const PICKER_CELL = 28; // displayed cell size in the picker grid
+const PICKER_CELL = 44; // displayed cell size in the picker grid
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ReqType = 'total_level' | 'kind_level' | 'total_xp' | 'workout_count';
@@ -57,18 +57,30 @@ interface Buff {
   value: number;
 }
 
+const RARITIES: RpgRarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
 interface DbItem {
   id: string;
   code: string;
   name: string;
   type: string;
   eq_slot: string;
+  rarity: RpgRarity;
   spritesheet_path: string;
   sprite_positions: SpritePosition[] | null;
   buffs: Buff[] | null;
   created_at: string;
   rpg_item_requirements: DbRequirement[];
 }
+
+// ─── Rarity colours ───────────────────────────────────────────────────────────
+const RARITY_STYLES: Record<RpgRarity, { dot: string; activeBg: string; activeBorder: string; activeText: string; idleBorder: string; idleText: string }> = {
+  common:    { dot: 'bg-gray-400',   activeBg: 'bg-gray-500',   activeBorder: 'border-gray-500',   activeText: 'text-white', idleBorder: 'border-gray-300',   idleText: 'text-gray-500' },
+  uncommon:  { dot: 'bg-green-500',  activeBg: 'bg-green-500',  activeBorder: 'border-green-500',  activeText: 'text-white', idleBorder: 'border-green-300',  idleText: 'text-green-700' },
+  rare:      { dot: 'bg-blue-500',   activeBg: 'bg-blue-500',   activeBorder: 'border-blue-500',   activeText: 'text-white', idleBorder: 'border-blue-300',   idleText: 'text-blue-700' },
+  epic:      { dot: 'bg-purple-500', activeBg: 'bg-purple-600', activeBorder: 'border-purple-600', activeText: 'text-white', idleBorder: 'border-purple-300', idleText: 'text-purple-700' },
+  legendary: { dot: 'bg-yellow-500', activeBg: 'bg-yellow-500', activeBorder: 'border-yellow-500', activeText: 'text-gray-900', idleBorder: 'border-yellow-300', idleText: 'text-yellow-700' },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function posKey(p: SpritePosition) {
@@ -89,6 +101,7 @@ function generateSql(
   name: string,
   type: string,
   eqSlot: string,
+  rarity: RpgRarity,
   positions: SpritePosition[],
   requirements: Requirement[],
   buffs: Buff[],
@@ -101,12 +114,13 @@ function generateSql(
 
   if (isNew) {
     lines.push(
-      `INSERT INTO public.rpg_items (code, name, type, eq_slot, spritesheet_path, sprite_positions, buffs)`,
+      `INSERT INTO public.rpg_items (code, name, type, eq_slot, rarity, spritesheet_path, sprite_positions, buffs)`,
       `VALUES (`,
       `  ${sqlStr(code)},`,
       `  ${sqlStr(name)},`,
       `  ${sqlStr(type)},`,
       `  ${sqlStr(eqSlot)},`,
+      `  '${rarity}',`,
       `  'pixelart/eq_sprites_t.png',`,
       `  '${posJson}',`,
       `  '${buffsJson}'`,
@@ -118,6 +132,7 @@ function generateSql(
       `  name = ${sqlStr(name)},`,
       `  type = ${sqlStr(type)},`,
       `  eq_slot = ${sqlStr(eqSlot)},`,
+      `  rarity = '${rarity}',`,
       `  sprite_positions = '${posJson}',`,
       `  buffs = '${buffsJson}'`,
       `WHERE code = ${sqlStr(code)};`,
@@ -168,12 +183,13 @@ function generateAllItemsSql(items: DbItem[]): string {
 
     blocks.push(
       `-- ${item.code}`,
-      `INSERT INTO public.rpg_items (code, name, type, eq_slot, spritesheet_path, sprite_positions, buffs)`,
+      `INSERT INTO public.rpg_items (code, name, type, eq_slot, rarity, spritesheet_path, sprite_positions, buffs)`,
       `VALUES (`,
       `  ${sqlStr(item.code)},`,
       `  ${sqlStr(item.name)},`,
       `  ${sqlStr(item.type)},`,
       `  ${sqlStr(item.eq_slot)},`,
+      `  '${item.rarity ?? 'common'}',`,
       `  'pixelart/eq_sprites_t.png',`,
       `  '${posJson}',`,
       `  '${buffsJson}'`,
@@ -182,6 +198,7 @@ function generateAllItemsSql(items: DbItem[]): string {
       `  name = EXCLUDED.name,`,
       `  type = EXCLUDED.type,`,
       `  eq_slot = EXCLUDED.eq_slot,`,
+      `  rarity = EXCLUDED.rarity,`,
       `  sprite_positions = EXCLUDED.sprite_positions,`,
       `  buffs = EXCLUDED.buffs;`,
     );
@@ -377,6 +394,7 @@ export default function AdminRpgPage() {
   const [name, setName] = useState('');
   const [type, setType] = useState('weapon-sword');
   const [eqSlot, setEqSlot] = useState<EquipmentSlotId>('slot-weapon');
+  const [rarity, setRarity] = useState<RpgRarity>('common');
   const [positions, setPositions] = useState<SpritePosition[]>([]);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [buffs, setBuffs] = useState<Buff[]>([]);
@@ -404,6 +422,7 @@ export default function AdminRpgPage() {
     setName(item.name);
     setType(item.type);
     setEqSlot(item.eq_slot as EquipmentSlotId);
+    setRarity(item.rarity ?? 'common');
     setPositions(item.sprite_positions ?? []);
     setRequirements(item.rpg_item_requirements.map(dbReqToForm));
     setBuffs((item.buffs ?? []).map((b) => ({ kind: b.kind as BuffKind, value: b.value })));
@@ -416,6 +435,7 @@ export default function AdminRpgPage() {
     setName('');
     setType('weapon-sword');
     setEqSlot('slot-weapon');
+    setRarity('common');
     setPositions([]);
     setRequirements([]);
     setBuffs([]);
@@ -437,7 +457,7 @@ export default function AdminRpgPage() {
   const handleGenerate = () => {
     setSql(generateSql(
       selectedItem === null,
-      code, name, type, eqSlot, positions, requirements, buffs,
+      code, name, type, eqSlot, rarity, positions, requirements, buffs,
     ));
   };
 
@@ -490,13 +510,14 @@ export default function AdminRpgPage() {
             <p className="px-3 py-4 text-xs text-gray-400">Ładowanie…</p>
           ) : (
             <ul>
-              {items.map((item) => (
+              {[...items].sort((a, b) => RARITIES.indexOf(a.rarity ?? 'common') - RARITIES.indexOf(b.rarity ?? 'common')).map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => loadItem(item)}
                     className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${selectedItem?.id === item.id ? 'bg-blue-50 font-semibold text-blue-700' : ''}`}
                   >
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${RARITY_STYLES[item.rarity ?? 'common'].dot}`} />
                     {item.sprite_positions?.length ? (
                       <SpritePreview positions={item.sprite_positions} size={24} />
                     ) : (
@@ -580,6 +601,30 @@ export default function AdminRpgPage() {
                       ))}
                   </datalist>
                 </label>
+
+                {/* Rarity picker */}
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] text-gray-500">rarity</span>
+                  <div className="flex flex-wrap gap-1">
+                    {RARITIES.map((r) => {
+                      const s = RARITY_STYLES[r];
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setRarity(r)}
+                          className={`rounded px-2 py-0.5 text-[10px] font-semibold border transition-colors ${
+                            rarity === r
+                              ? `${s.activeBg} ${s.activeBorder} ${s.activeText}`
+                              : `bg-white ${s.idleBorder} ${s.idleText} hover:opacity-80`
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {/* Slot picker */}
                 <div className="flex flex-col gap-0.5">

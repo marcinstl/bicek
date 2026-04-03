@@ -126,32 +126,40 @@ export const DEFAULT_XP_RATES: XpRates = {
   total: 100,
 };
 
+export type RpgRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
 export interface RpgDiscoveredItem {
   id: string;
   eq_slot: string;
   spritesheet_path: string;
-  name?: string;
-  item_type?: string;
+  rarity?: RpgRarity;
+  name?: string | null;
+  item_type?: string | null;
   requirements?: RpgRequirement[];
   sprite_positions?: SpritePosition[] | null;
   buffs?: RpgItemBuff[];
 }
 
-export interface RpgItemDiscoveryRow {
+export interface RpgHunt {
   id: string;
   user_id: string;
-  item_id: string;
-  discovered_at: string;
+  rarity: RpgRarity;
+  duration_hours: number;
+  started_at: string;
+  collected_at: string | null;
+  reward_item_ids: string[] | null;
+  created_at: string;
 }
 
-export interface RpgEquipmentRow {
+export interface RpgInventoryRow {
   id: string;
   user_id: string;
   item_id: string;
+  equipped: boolean;
   equipped_at: string;
   updated_at: string;
 }
 
-export interface RpgEquipmentWithItem extends RpgEquipmentRow {
-  item: RpgDiscoveredItem;
+export interface RpgInventoryWithItem extends RpgInventoryRow {
+  item: RpgDiscoveredItem & { rarity: RpgRarity };
 }

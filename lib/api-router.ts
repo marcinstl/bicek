@@ -117,25 +117,28 @@ export const getExerciseHistory = (exerciseId: string, excludeWorkoutId: string)
       : online.getExerciseHistory(exerciseId, excludeWorkoutId)
   );
 
-// ─── RPG items / equipment ───────────────────────────────────────────────────
+// ─── RPG items / inventory / hunts ──────────────────────────────────────────
 
 export const getRpgItems = () =>
   route(() => (isOfflineMode() ? offline.getRpgItems() : online.getRpgItems()));
 
-export const getRpgEquipment = () =>
-  route(() => (isOfflineMode() ? offline.getRpgEquipment() : online.getRpgEquipment()));
+export const getRpgInventory = () =>
+  route(() => online.getRpgInventory());
 
 export const equipRpgItem = (input: { item_id: string }) =>
-  route(() => (isOfflineMode() ? offline.equipRpgItem(input) : online.equipRpgItem(input)));
+  route(() => online.equipRpgItem(input));
 
 export const unequipRpgItem = (itemId: string) =>
-  route(() => (isOfflineMode() ? offline.unequipRpgItem(itemId) : online.unequipRpgItem(itemId)));
+  route(() => online.unequipRpgItem(itemId));
 
-export const getDiscoveredItems = () =>
-  route(() => (isOfflineMode() ? offline.getDiscoveredItems() : online.getDiscoveredItems()));
+export const getActiveHunt = () =>
+  route(() => online.getActiveHunt());
 
-export const tryDiscoverItems = () =>
-  route(() => (isOfflineMode() ? offline.tryDiscoverItems() : online.tryDiscoverItems()));
+export const startHunt = (rarity: string) =>
+  route(() => online.startHunt(rarity));
+
+export const collectHunt = () =>
+  route(() => online.collectHunt());
 
 // ─── Re-export shared utils from api.ts ──────────────────────────────────────
 

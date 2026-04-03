@@ -1,11 +1,9 @@
 import { getDb, OFFLINE_USER_ID, randomId } from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
-import { checkRequirements } from '@/lib/rpg/requirements';
 import { MOCK_RPG_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type {
   Plan,
   Exercise,
-  ExerciseKind,
   Workout,
   Set,
   SetWithExercise,
@@ -16,9 +14,6 @@ import type {
   UpdateExerciseInput,
   AddSetInput,
   RpgDiscoveredItem,
-  RpgItemDiscoveryRow,
-  RpgEquipmentRow,
-  RpgEquipmentWithItem,
 } from '@/lib/types';
 
 // ─── Plans ───────────────────────────────────────────────────────────────────
@@ -200,117 +195,7 @@ export async function getRpgItems(): Promise<RpgDiscoveredItem[]> {
   return rows;
 }
 
-export async function getRpgEquipment(): Promise<RpgEquipmentWithItem[]> {
-  const db = await getDb();
-  const rows = await db.getAll('rpg_equipment');
-  const mockById = new Map(MOCK_RPG_ITEMS.map((item) => [item.id, item] as const));
-  const result: RpgEquipmentWithItem[] = [];
-  for (const row of rows) {
-    const item = (await db.get('rpg_items', row.item_id)) ?? mockById.get(row.item_id);
-    if (!item) continue;
-    result.push({ ...row, item });
-  }
-  return result;
-}
-
-export async function equipRpgItem(input: { item_id: string }): Promise<RpgEquipmentRow> {
-  const db = await getDb();
-  const allRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
-  const allItems = await db.getAll('rpg_items');
-  const targetItem = allItems.find((i) => i.id === input.item_id);
-  const targetSlot = targetItem?.eq_slot;
-
-  // Remove any existing item in the same slot.
-  if (targetSlot) {
-    for (const row of allRows) {
-      const rowItem = allItems.find((i) => i.id === row.item_id);
-      if (rowItem?.eq_slot === targetSlot) {
-        await db.delete('rpg_equipment', row.id);
-      }
-    }
-  }
-
-  const now = new Date().toISOString();
-  const row: RpgEquipmentRow = {
-    id: randomId(),
-    user_id: OFFLINE_USER_ID,
-    item_id: input.item_id,
-    equipped_at: now,
-    updated_at: now,
-  };
-  await db.put('rpg_equipment', row);
-  await discoverItem(input.item_id);
-  return row;
-}
-
-export async function unequipRpgItem(itemId: string): Promise<void> {
-  const db = await getDb();
-  const existingRows = await db.getAllFromIndex('rpg_equipment', 'by_user', OFFLINE_USER_ID);
-  const existing = existingRows.find((row) => row.item_id === itemId);
-  if (!existing) return;
-  await db.delete('rpg_equipment', existing.id);
-}
-
-export async function getDiscoveredItems(): Promise<RpgItemDiscoveryRow[]> {
-  const db = await getDb();
-  return await db.getAllFromIndex('rpg_item_discoveries', 'by_user', OFFLINE_USER_ID);
-}
-
-export async function discoverItem(itemId: string): Promise<RpgItemDiscoveryRow> {
-  const db = await getDb();
-  const existing = await db.getFromIndex('rpg_item_discoveries', 'by_user_item', [OFFLINE_USER_ID, itemId]);
-  if (existing) return existing;
-  const row: RpgItemDiscoveryRow = {
-    id: randomId(),
-    user_id: OFFLINE_USER_ID,
-    item_id: itemId,
-    discovered_at: new Date().toISOString(),
-  };
-  await db.put('rpg_item_discoveries', row);
-  return row;
-}
-
-export async function tryDiscoverItems(): Promise<string[]> {
-  const db = await getDb();
-
-  const allWorkouts = await db.getAll('workouts');
-  const completedWorkouts = allWorkouts.filter((w) => w.ended_at !== null);
-  const workoutCount = completedWorkouts.length;
-  const completedIds = new Set(completedWorkouts.map((w) => w.id));
-
-  const kindTotals: Record<ExerciseKind, number> = {
-    weighted_reps: 0,
-    bodyweight_reps: 0,
-    time_based: 0,
-    distance_per_time: 0,
-  };
-
-  const allSets = await db.getAll('sets');
-  for (const s of allSets) {
-    if (!completedIds.has(s.workout_id)) continue;
-    const exercise = await db.get('exercises', s.exercise_id);
-    const kind: ExerciseKind = exercise?.kind ?? 'bodyweight_reps';
-    kindTotals[kind] += s.xp ?? computeSetXp(kind, s);
-  }
-
-  const totalXp = Object.values(kindTotals).reduce((sum, v) => sum + v, 0);
-  const context = { totalXp, kindTotals, workoutCount };
-
-  const items = await getRpgItems();
-  const discoveries = await getDiscoveredItems();
-  const discoveredIds = new Set(discoveries.map((d) => d.item_id));
-
-  const newlyDiscovered: string[] = [];
-  for (const item of items) {
-    if (discoveredIds.has(item.id)) continue;
-    if (checkRequirements(item.requirements, context)) {
-      await discoverItem(item.id);
-      newlyDiscovered.push(item.id);
-    }
-  }
-
-  return newlyDiscovered;
-}
+// RPG inventory and hunt operations are online-only (server-side security required).
 
 // ─── Sets ────────────────────────────────────────────────────────────────────
 
