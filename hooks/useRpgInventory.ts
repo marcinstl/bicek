@@ -10,6 +10,7 @@ import {
   startHunt,
   unequipRpgItem,
 } from '@/lib/api-router';
+import { createClient } from '@/lib/supabase';
 import type { RpgRarity } from '@/lib/types';
 
 export const rpgKeys = {
@@ -17,6 +18,7 @@ export const rpgKeys = {
   items: () => [...rpgKeys.all, 'items'] as const,
   inventory: () => [...rpgKeys.all, 'inventory'] as const,
   hunt: () => [...rpgKeys.all, 'hunt'] as const,
+  huntPoints: () => [...rpgKeys.all, 'hunt-points'] as const,
 };
 
 export function useRpgItems() {
@@ -46,6 +48,24 @@ export function useActiveHunt() {
   });
 }
 
+export function useHuntPoints() {
+  return useQuery({
+    queryKey: rpgKeys.huntPoints(),
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('hunt_points, hunt_points_maximum')
+        .eq('id', user.id)
+        .single();
+      return data as { hunt_points: number; hunt_points_maximum: number } | null;
+    },
+    staleTime: 0,
+  });
+}
+
 export function useEquipRpgItem() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -72,6 +92,7 @@ export function useStartHunt() {
     mutationFn: (rarity: RpgRarity) => startHunt(rarity),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: rpgKeys.hunt() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
     },
   });
 }
@@ -84,6 +105,7 @@ export function useCollectHunt() {
       queryClient.invalidateQueries({ queryKey: rpgKeys.hunt() });
       queryClient.invalidateQueries({ queryKey: rpgKeys.inventory() });
       queryClient.invalidateQueries({ queryKey: rpgKeys.items() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
     },
   });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase-server';
 import { HUNT_CONFIG_BY_RARITY } from '@/lib/rpg/hunts';
 import type { RpgRarity } from '@/lib/types';
 
@@ -33,6 +33,28 @@ export async function POST(req: Request) {
   }
 
   const config = HUNT_CONFIG_BY_RARITY[rarity];
+  const cost = config.hunt_cost;
+
+  // Check and deduct hunt points via admin client (bypasses RLS on profiles).
+  const admin = createAdminSupabaseClient();
+
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .select('hunt_points')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if ((profile?.hunt_points ?? 0) < cost) {
+    return NextResponse.json({ error: 'Not enough hunt points' }, { status: 402 });
+  }
+
+  const { error: deductError } = await admin
+    .from('profiles')
+    .update({ hunt_points: (profile.hunt_points as number) - cost })
+    .eq('id', user.id);
+
+  if (deductError) return NextResponse.json({ error: deductError.message }, { status: 500 });
 
   const { data: hunt, error: insertError } = await supabase
     .from('rpg_hunts')

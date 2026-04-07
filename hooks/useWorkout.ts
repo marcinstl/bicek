@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { rpgKeys } from '@/hooks/useRpgInventory';
 import {
   addSet,
   deleteSet,
@@ -114,6 +115,9 @@ export function useFinishWorkout(planId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workoutId }),
       });
+
+      // Trigger refetch of hunt points (DB trigger awards them server-side)
+      void queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
     },
   });
 }

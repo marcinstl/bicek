@@ -7,6 +7,7 @@ export const HUNT_CONFIGS = [
     duration_hours: 0.5,
     item_count_min: 1,
     item_count_max: 1,
+    hunt_cost: 50,
   },
   {
     rarity: 'uncommon' as RpgRarity,
@@ -14,6 +15,7 @@ export const HUNT_CONFIGS = [
     duration_hours: 2,
     item_count_min: 1,
     item_count_max: 2,
+    hunt_cost: 100,
   },
   {
     rarity: 'rare' as RpgRarity,
@@ -21,6 +23,7 @@ export const HUNT_CONFIGS = [
     duration_hours: 6,
     item_count_min: 1,
     item_count_max: 3,
+    hunt_cost: 150,
   },
   {
     rarity: 'epic' as RpgRarity,
@@ -28,6 +31,7 @@ export const HUNT_CONFIGS = [
     duration_hours: 24,
     item_count_min: 1,
     item_count_max: 5,
+    hunt_cost: 250,
   },
   {
     rarity: 'legendary' as RpgRarity,
@@ -35,6 +39,7 @@ export const HUNT_CONFIGS = [
     duration_hours: 168,
     item_count_min: 1,
     item_count_max: 7,
+    hunt_cost: 400,
   },
 ] as const;
 

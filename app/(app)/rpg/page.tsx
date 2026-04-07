@@ -11,6 +11,7 @@ import {
   useRpgItems,
   useUnequipRpgItem,
   useActiveHunt,
+  useHuntPoints,
   useStartHunt,
   useCollectHunt,
   rpgKeys,
@@ -226,6 +227,7 @@ export default function RpgPage() {
   const { data: items = [] } = useRpgItems();
   const { data: inventoryRows = [] } = useRpgInventory();
   const { data: activeHunt } = useActiveHunt();
+  const { data: huntPoints } = useHuntPoints();
   const equipMutation = useEquipRpgItem();
   const unequipMutation = useUnequipRpgItem();
   const startHuntMutation = useStartHunt();
@@ -586,36 +588,62 @@ export default function RpgPage() {
               </div>
             ) : (
               // No active hunt — Hunt button
-              <button
-                type="button"
-                onClick={() => setHuntModalOpen(true)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-              >
-                ⚔️ Hunt
-              </button>
+              <div>
+                {huntPoints != null && (
+                  <p className="mb-1.5 text-right text-[11px] text-gray-500">
+                    Hunt Points: <span className="font-semibold text-gray-700 tabular-nums">{huntPoints.hunt_points % 1 === 0 ? huntPoints.hunt_points : huntPoints.hunt_points.toFixed(1)}</span>
+                    {' / '}
+                    <span className="tabular-nums">{huntPoints.hunt_points_maximum}</span>
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={(huntPoints?.hunt_points ?? 50) < 50}
+                  onClick={() => setHuntModalOpen(true)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={(huntPoints?.hunt_points ?? 50) < 50 ? 'Potrzebujesz co najmniej 50 Hunt Points' : undefined}
+                >
+                  ⚔️ Hunt
+                </button>
+              </div>
             )}
 
             {/* Hunt picker modal */}
             {huntModalOpen && !activeHunt && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
                 <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-                  <h2 className="mb-4 text-base font-bold text-gray-900">Wybierz wyprawę</h2>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-base font-bold text-gray-900">Wybierz wyprawę</h2>
+                    {huntPoints != null && (
+                      <span className="text-xs text-gray-500">
+                        <span className="font-semibold text-gray-700 tabular-nums">
+                          {huntPoints.hunt_points % 1 === 0 ? huntPoints.hunt_points : huntPoints.hunt_points.toFixed(1)}
+                        </span>
+                        {' / '}{huntPoints.hunt_points_maximum} HP
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-col gap-2">
                     {HUNT_CONFIGS.map((cfg) => {
                       const styles = HUNT_RARITY_STYLES[cfg.rarity];
                       const isSelected = selectedHuntRarity === cfg.rarity;
+                      const canAfford = (huntPoints?.hunt_points ?? 0) >= cfg.hunt_cost;
                       return (
                         <button
                           key={cfg.rarity}
                           type="button"
+                          disabled={!canAfford}
                           onClick={() => setSelectedHuntRarity(cfg.rarity)}
-                          className={`flex items-start gap-3 rounded-xl border-l-4 px-3 py-2.5 text-left transition-colors ${styles.border} ${isSelected ? `${styles.bg} ring-1 ring-inset ${styles.border}` : 'bg-white hover:bg-gray-50'}`}
+                          className={`flex items-start gap-3 rounded-xl border-l-4 px-3 py-2.5 text-left transition-colors ${styles.border} ${isSelected ? `${styles.bg} ring-1 ring-inset ${styles.border}` : canAfford ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 opacity-50 cursor-not-allowed'}`}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-gray-900">{cfg.name}</span>
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${styles.badge}`}>
                                 {RARITY_LABELS[cfg.rarity]}
+                              </span>
+                              <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>
+                                {cfg.hunt_cost} HP
                               </span>
                             </div>
                             <p className="text-[11px] text-gray-500 mt-0.5">
@@ -650,7 +678,7 @@ export default function RpgPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={!selectedHuntRarity || startHuntMutation.isPending}
+                      disabled={!selectedHuntRarity || startHuntMutation.isPending || (selectedHuntRarity != null && (huntPoints?.hunt_points ?? 0) < (HUNT_CONFIGS.find((c) => c.rarity === selectedHuntRarity)?.hunt_cost ?? 0))}
                       onClick={() => {
                         if (!selectedHuntRarity) return;
                         void startHuntMutation.mutateAsync(selectedHuntRarity).then(() => {
