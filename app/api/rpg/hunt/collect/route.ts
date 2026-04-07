@@ -73,14 +73,14 @@ export async function POST() {
   // Mark hunt as collected
   const { error: updateError } = await admin
     .from('rpg_hunts')
-    .update({ collected_at: new Date().toISOString(), reward_item_ids: rewardItemIds })
+    .update({ collected_at: new Date().toISOString() })
     .eq('id', hunt.id);
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
-  // Return full item data for the reward modal — one entry per reward_item_ids slot (duplicates preserved)
+  // Return full item data for the reward modal — one entry per rolled slot (duplicates preserved)
   const itemMap = new Map((allItems ?? []).map((i) => [i.id, i]));
   const rewardItems = rewardItemIds.map((id) => itemMap.get(id)).filter(Boolean);
 
-  return NextResponse.json({ reward_item_ids: rewardItemIds, items: rewardItems });
+  return NextResponse.json({ items: rewardItems });
 }

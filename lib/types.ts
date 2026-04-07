@@ -147,7 +147,6 @@ export interface RpgHunt {
   duration_hours: number;
   started_at: string;
   collected_at: string | null;
-  reward_item_ids: string[] | null;
   created_at: string;
 }
 

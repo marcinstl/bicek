@@ -336,13 +336,13 @@ export async function startHunt(rarity: string): Promise<RpgHunt> {
   return (await res.json()) as RpgHunt;
 }
 
-export async function collectHunt(): Promise<{ reward_item_ids: string[]; items: unknown[] }> {
+export async function collectHunt(): Promise<{ items: unknown[] }> {
   const res = await fetch('/api/rpg/hunt/collect', { method: 'POST' });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? 'Failed to collect hunt');
   }
-  return res.json() as Promise<{ reward_item_ids: string[]; items: unknown[] }>;
+  return res.json() as Promise<{ items: unknown[] }>;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────

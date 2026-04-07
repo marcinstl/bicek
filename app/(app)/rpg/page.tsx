@@ -479,6 +479,27 @@ export default function RpgPage() {
                 );
               })}
             </div>
+
+            {/* Hunt Points — below skill bars */}
+            {huntPoints != null && (
+              <div className="mt-5 max-w-sm">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">Hunt Points</span>
+                  <span className="text-xs font-medium tabular-nums text-gray-700">
+                    {huntPoints.hunt_points % 1 === 0
+                      ? huntPoints.hunt_points
+                      : huntPoints.hunt_points.toFixed(1)}
+                    <span className="font-normal text-gray-400"> / {huntPoints.hunt_points_maximum}</span>
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100">
+                  <div
+                    className="h-2 rounded-full bg-amber-400 transition-all duration-500"
+                    style={{ width: `${Math.min(100, (huntPoints.hunt_points / huntPoints.hunt_points_maximum) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-gray-300/80 bg-slate-900/5 p-3 flex flex-col items-center">
@@ -527,6 +548,7 @@ export default function RpgPage() {
                 </div>
               );
             })()}
+
           </div>
         </div>
       </div>
@@ -589,13 +611,6 @@ export default function RpgPage() {
             ) : (
               // No active hunt — Hunt button
               <div>
-                {huntPoints != null && (
-                  <p className="mb-1.5 text-right text-[11px] text-gray-500">
-                    Hunt Points: <span className="font-semibold text-gray-700 tabular-nums">{huntPoints.hunt_points % 1 === 0 ? huntPoints.hunt_points : huntPoints.hunt_points.toFixed(1)}</span>
-                    {' / '}
-                    <span className="tabular-nums">{huntPoints.hunt_points_maximum}</span>
-                  </p>
-                )}
                 <button
                   type="button"
                   disabled={(huntPoints?.hunt_points ?? 50) < 50}
