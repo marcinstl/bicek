@@ -1,28 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
 import { SpriteIcon } from '@/components/SpriteIcon';
-import Link from 'next/link';
-import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import {
+  useActiveHunt,
+  useCollectHunt,
   useEquipRpgItem,
+  useHuntPoints,
   useRpgInventory,
   useRpgItems,
-  useUnequipRpgItem,
-  useActiveHunt,
-  useHuntPoints,
   useStartHunt,
-  useCollectHunt,
-  rpgKeys,
+  useUnequipRpgItem,
 } from '@/hooks/useRpgInventory';
-import { getLevelProgress } from '@/lib/rpg/leveling';
-import { computeSetXp } from '@/lib/rpg/xp';
-import { applyXpRates, applyKindRate } from '@/lib/rpg/buffs';
-import { checkRequirements } from '@/lib/rpg/requirements';
-import { HUNT_CONFIGS, RARITY_LABELS, RARITY_LOOT_PREVIEW } from '@/lib/rpg/hunts';
-import type { ExerciseKind, RpgRarity, RpgRequirement, XpRates } from '@/lib/types';
+import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import { getExerciseKindTitle, kindBuffBadgeClassName } from '@/lib/exercise-stats';
+import { applyKindRate, applyXpRates } from '@/lib/rpg/buffs';
+import { HUNT_CONFIGS, RARITY_LABELS, RARITY_LOOT_PREVIEW } from '@/lib/rpg/hunts';
+import { getLevelProgress } from '@/lib/rpg/leveling';
+import { checkRequirements } from '@/lib/rpg/requirements';
+import { computeSetXp } from '@/lib/rpg/xp';
+import type { ExerciseKind, RpgRarity, RpgRequirement, XpRates } from '@/lib/types';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const DEFAULT_XP_RATES: XpRates = {
   weighted_reps: 100,
@@ -814,8 +812,10 @@ export default function RpgPage() {
             .map((row) => ({ row, item: itemById.get(row.item_id) }))
             .filter((e): e is InvEntry => e.item != null)
             .sort((a, b) => {
-              const aRank = RARITY_SORT_INDEX[a.item.rarity] ?? -1;
-              const bRank = RARITY_SORT_INDEX[b.item.rarity] ?? -1;
+              const aRank =
+                a.item.rarity != null ? (RARITY_SORT_INDEX[a.item.rarity] ?? -1) : -1;
+              const bRank =
+                b.item.rarity != null ? (RARITY_SORT_INDEX[b.item.rarity] ?? -1) : -1;
               if (aRank !== bRank) return aRank - bRank;
               return b.row.equipped_at.localeCompare(a.row.equipped_at);
             });

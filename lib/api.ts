@@ -212,15 +212,17 @@ export async function getWorkout(workoutId: string): Promise<Workout> {
 }
 
 export async function finishWorkout(workoutId: string): Promise<Workout> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('workouts')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('id', workoutId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const res = await fetch('/api/workouts/finish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workoutId }),
+    credentials: 'same-origin',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? 'Failed to finish workout');
+  }
+  return res.json() as Promise<Workout>;
 }
 
 export async function deleteWorkout(workoutId: string): Promise<void> {
