@@ -19,6 +19,7 @@ import {
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { computeSetXp } from '@/lib/rpg/xp';
 import { applyXpRates, applyKindRate } from '@/lib/rpg/buffs';
+import { checkRequirements } from '@/lib/rpg/requirements';
 import { HUNT_CONFIGS, RARITY_LABELS, RARITY_LOOT_PREVIEW } from '@/lib/rpg/hunts';
 import type { ExerciseKind, RpgRarity, RpgRequirement, XpRates } from '@/lib/types';
 import { getExerciseKindTitle, kindBuffBadgeClassName } from '@/lib/exercise-stats';
@@ -124,6 +125,14 @@ const HUNT_MODAL_SPRITE_BY_RARITY: Record<RpgRarity, { col: number; row: number 
   rare: { col: 2, row: 42 },
   epic: { col: 3, row: 42 },
   legendary: { col: 4, row: 42 },
+};
+
+const RARITY_SORT_INDEX: Record<RpgRarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
 };
 
 function formatCountdown(ms: number): string {
@@ -311,17 +320,6 @@ export default function RpgPage() {
     [items, ownedItemIds],
   );
 
-  const handleEquipItem = useCallback((itemId: string, eqSlot: EquipmentSlotId) => {
-    if (!ownedItemIds.has(itemId)) return;
-    const item = itemById.get(itemId);
-    if (!item || item.eq_slot !== eqSlot) return;
-    if (equippedBySlot[eqSlot] === itemId) {
-      void unequipMutation.mutateAsync(itemId);
-    } else {
-      void equipMutation.mutateAsync({ item_id: itemId });
-    }
-  }, [ownedItemIds, itemById, equippedBySlot, unequipMutation, equipMutation]);
-
   useEffect(() => {
     if (!menuRowId) return;
     const handle = (e: MouseEvent) => {
@@ -387,6 +385,28 @@ export default function RpgPage() {
 
   const totalXp = xpStats.totalXp;
   const kindTotals = xpStats.kindTotals;
+
+  const canEquipItem = useCallback((itemId: string) => {
+    const item = itemById.get(itemId);
+    if (!item) return false;
+    return checkRequirements(item.requirements, {
+      totalXp,
+      kindTotals,
+      workoutCount: history.length,
+    });
+  }, [itemById, totalXp, kindTotals, history.length]);
+
+  const handleEquipItem = useCallback((itemId: string, eqSlot: EquipmentSlotId) => {
+    if (!ownedItemIds.has(itemId)) return;
+    const item = itemById.get(itemId);
+    if (!item || item.eq_slot !== eqSlot) return;
+    if (!canEquipItem(itemId)) return;
+    if (equippedBySlot[eqSlot] === itemId) {
+      void unequipMutation.mutateAsync(itemId);
+    } else {
+      void equipMutation.mutateAsync({ item_id: itemId });
+    }
+  }, [ownedItemIds, itemById, canEquipItem, equippedBySlot, unequipMutation, equipMutation]);
 
 
   const progress = getLevelProgress(totalXp);
@@ -637,7 +657,10 @@ export default function RpgPage() {
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   title={(huntPoints?.hunt_points ?? 50) < 50 ? 'Potrzebujesz co najmniej 50 Hunt Points' : undefined}
                 >
-                  ⚔️ Hunt
+                  <span className="inline-flex items-center gap-2">
+                    <SpriteIcon positions={[{ col: 3, row: 47 }]} size={16} />
+                    Hunt
+                  </span>
                 </button>
               </div>
             )}
@@ -790,7 +813,12 @@ export default function RpgPage() {
           const inventoryEntries: InvEntry[] = inventoryRows
             .map((row) => ({ row, item: itemById.get(row.item_id) }))
             .filter((e): e is InvEntry => e.item != null)
-            .sort((a, b) => b.row.equipped_at.localeCompare(a.row.equipped_at));
+            .sort((a, b) => {
+              const aRank = RARITY_SORT_INDEX[a.item.rarity] ?? -1;
+              const bRank = RARITY_SORT_INDEX[b.item.rarity] ?? -1;
+              if (aRank !== bRank) return aRank - bRank;
+              return b.row.equipped_at.localeCompare(a.row.equipped_at);
+            });
 
           // Still needed for detail/compare lookup (unique items by id)
           const discovered = items.filter((item) => ownedItemIds.has(item.id));
@@ -901,6 +929,7 @@ export default function RpgPage() {
           // ── Detail view ──
           if (detailItem) {
             const isEquipped = equippedBySlot[detailItem.eq_slot as EquipmentSlotId] === detailItem.id;
+            const canEquipDetail = canEquipItem(detailItem.id);
             return (
               <>
                 <div className="flex items-center gap-2">
@@ -944,7 +973,9 @@ export default function RpgPage() {
                     <button
                       type="button"
                       onClick={() => handleEquipItem(detailItem.id, detailItem.eq_slot as EquipmentSlotId)}
-                      className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      disabled={!isEquipped && !canEquipDetail}
+                      title={!isEquipped && !canEquipDetail ? 'Nie spelniono wymagan przedmiotu' : undefined}
+                      className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isEquipped ? 'Unequip' : 'Equip'}
                     </button>
@@ -1010,12 +1041,16 @@ export default function RpgPage() {
               {entryList.map(({ row, item }) => {
                 const isMenuOpen = menuRowId === row.id;
                 const rarityStyles = item.rarity ? HUNT_RARITY_STYLES[item.rarity] : null;
+                const isSameItemAlreadyEquipped = Object.values(equippedBySlot).some((equippedId) => equippedId === item.id);
+                const canEquipFromReq = canEquipItem(item.id);
+                const canEquipFromMenu = !row.equipped && !isSameItemAlreadyEquipped && canEquipFromReq;
+                const isRequirementLocked = !row.equipped && !canEquipFromReq;
                 return (
                   <div key={row.id} className="relative" data-inventory-menu>
                     <button
                       type="button"
                       onClick={() => setMenuRowId(isMenuOpen ? null : row.id)}
-                      className={`relative flex h-14 w-14 items-center justify-center rounded-xl border transition-colors ${rarityStyles ? `${rarityStyles.border} ${rarityStyles.bg}` : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                      className={`relative flex h-14 w-14 items-center justify-center rounded-xl border transition-colors ${rarityStyles ? `${rarityStyles.border} ${rarityStyles.bg}` : 'border-gray-200 bg-white hover:border-gray-300'} ${isRequirementLocked ? 'opacity-35 saturate-50' : ''}`}
                     >
                       <SpriteIcon positions={item.sprite_positions!} size={48} />
                     </button>
@@ -1029,14 +1064,22 @@ export default function RpgPage() {
                           onClick={() => {
                             if (row.equipped) {
                               void unequipMutation.mutateAsync(row.item_id);
-                            } else {
+                            } else if (canEquipFromMenu) {
                               void equipMutation.mutateAsync({ item_id: row.item_id });
                             }
                             setMenuRowId(null);
                           }}
-                          className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                          disabled={!row.equipped && !canEquipFromMenu}
+                          title={
+                            !row.equipped && isSameItemAlreadyEquipped
+                              ? 'Ten przedmiot jest juz zalozony'
+                              : !row.equipped && !canEquipFromReq
+                                ? 'Nie spelniono wymagan przedmiotu'
+                                : undefined
+                          }
+                          className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {row.equipped ? 'Unequip' : 'Equip'}
+                          {row.equipped ? 'Unequip' : isSameItemAlreadyEquipped ? 'Equipped' : !canEquipFromReq ? 'Locked' : 'Equip'}
                         </button>
                         <div className="border-t border-gray-100" />
                         <button
