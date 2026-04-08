@@ -110,6 +110,22 @@ const HUNT_RARITY_STYLES: Record<RpgRarity, { border: string; bg: string; fill: 
   legendary: { border: 'border-yellow-400', bg: 'bg-yellow-50',  fill: 'bg-yellow-500', text: 'text-yellow-700', badge: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
 };
 
+const RARITY_TINT_HEX: Record<RpgRarity, string> = {
+  common: '#9ca3af',
+  uncommon: '#22c55e',
+  rare: '#3b82f6',
+  epic: '#a855f7',
+  legendary: '#eab308',
+};
+
+const HUNT_MODAL_SPRITE_BY_RARITY: Record<RpgRarity, { col: number; row: number }> = {
+  common: { col: 0, row: 42 },
+  uncommon: { col: 1, row: 42 },
+  rare: { col: 2, row: 42 },
+  epic: { col: 3, row: 42 },
+  legendary: { col: 4, row: 42 },
+};
+
 function formatCountdown(ms: number): string {
   if (ms <= 0) return '00:00:00';
   const totalSec = Math.floor(ms / 1000);
@@ -489,7 +505,10 @@ export default function RpgPage() {
                     {huntPoints.hunt_points % 1 === 0
                       ? huntPoints.hunt_points
                       : huntPoints.hunt_points.toFixed(1)}
-                    <span className="font-normal text-gray-400"> / {huntPoints.hunt_points_maximum}</span>
+                    <span className="ml-1 inline-flex items-center gap-1 font-normal text-gray-400">
+                      / {huntPoints.hunt_points_maximum}
+                      <SpriteIcon positions={[{ col: 3, row: 47 }]} size={12} />
+                    </span>
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-gray-100">
@@ -630,7 +649,8 @@ export default function RpgPage() {
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-base font-bold text-gray-900">Wybierz wyprawę</h2>
                     {huntPoints != null && (
-                      <span className="text-xs text-gray-500">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                        <SpriteIcon positions={[{ col: 3, row: 47 }]} size={16} />
                         <span className="font-semibold text-gray-700 tabular-nums">
                           {huntPoints.hunt_points % 1 === 0 ? huntPoints.hunt_points : huntPoints.hunt_points.toFixed(1)}
                         </span>
@@ -649,8 +669,16 @@ export default function RpgPage() {
                           type="button"
                           disabled={!canAfford}
                           onClick={() => setSelectedHuntRarity(cfg.rarity)}
-                          className={`flex items-start gap-3 rounded-xl border-l-4 px-3 py-2.5 text-left transition-colors ${styles.border} ${isSelected ? `${styles.bg} ring-1 ring-inset ${styles.border}` : canAfford ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 opacity-50 cursor-not-allowed'}`}
+                          className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${styles.border} ${isSelected ? `${styles.bg} ring-1 ring-inset ${styles.border}` : canAfford ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 opacity-50 cursor-not-allowed'}`}
                         >
+                          <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${styles.border} ${styles.bg}`}>
+                            <SpriteIcon
+                              positions={[HUNT_MODAL_SPRITE_BY_RARITY[cfg.rarity]]}
+                              size={30}
+                              tintColor={RARITY_TINT_HEX[cfg.rarity]}
+                              tintOpacity={0.78}
+                            />
+                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-gray-900">{cfg.name}</span>
@@ -658,7 +686,10 @@ export default function RpgPage() {
                                 {RARITY_LABELS[cfg.rarity]}
                               </span>
                               <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold ${canAfford ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>
-                                {cfg.hunt_cost} HP
+                                <span className="inline-flex items-center gap-1">
+                                  {cfg.hunt_cost}
+                                  <SpriteIcon positions={[{ col: 3, row: 47 }]} size={12} />
+                                </span>
                               </span>
                             </div>
                             <p className="text-[11px] text-gray-500 mt-0.5">

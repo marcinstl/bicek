@@ -15,6 +15,8 @@ interface SpriteIconProps {
   /** ms per animation frame (only relevant when positions.length > 1). */
   frameSpeedMs?: number;
   grayscale?: boolean;
+  tintColor?: string;
+  tintOpacity?: number;
   className?: string;
 }
 
@@ -23,6 +25,8 @@ export function SpriteIcon({
   size = 56,
   frameSpeedMs = 300,
   grayscale = false,
+  tintColor,
+  tintOpacity = 0.72,
   className = '',
 }: SpriteIconProps) {
   const [frameIdx, setFrameIdx] = useState(0);
@@ -42,21 +46,41 @@ export function SpriteIcon({
   const scale = size / CELL;
   const bpX = -(pos.col * CELL * scale);
   const bpY = -(pos.row * CELL * scale);
+  const spriteBackground = {
+    backgroundImage: 'url(/pixelart/eq_sprites_t.png)',
+    backgroundSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
+    backgroundPosition: `${bpX}px ${bpY}px`,
+    backgroundRepeat: 'no-repeat',
+    imageRendering: 'pixelated' as const,
+  };
 
   return (
-    <div
-      aria-hidden="true"
-      className={`inline-block shrink-0 ${className}`}
-      style={{
-        width: size,
-        height: size,
-        backgroundImage: `url(/pixelart/eq_sprites_t.png)`,
-        backgroundSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
-        backgroundPosition: `${bpX}px ${bpY}px`,
-        backgroundRepeat: 'no-repeat',
-        imageRendering: 'pixelated',
-        filter: grayscale ? 'grayscale(1) brightness(0.35)' : undefined,
-      }}
-    />
+    <div aria-hidden="true" className={`relative inline-block shrink-0 ${className}`} style={{ width: size, height: size }}>
+      <div
+        className="absolute inset-0"
+        style={{
+          ...spriteBackground,
+          filter: grayscale ? 'grayscale(1) brightness(0.35)' : undefined,
+        }}
+      />
+      {tintColor ? (
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: tintColor,
+            opacity: tintOpacity,
+            mixBlendMode: 'multiply',
+            WebkitMaskImage: 'url(/pixelart/eq_sprites_t.png)',
+            maskImage: 'url(/pixelart/eq_sprites_t.png)',
+            WebkitMaskSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
+            maskSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
+            WebkitMaskPosition: `${bpX}px ${bpY}px`,
+            maskPosition: `${bpX}px ${bpY}px`,
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
