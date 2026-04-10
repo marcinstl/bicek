@@ -1,0 +1,779 @@
+{
+  "Skills": [
+    {
+      "Skill Name": "Earth Bolt",
+      "Skill Position": "(17,10)",
+      "Skill Position Exact": {
+        "x": 2010,
+        "y": 1230
+      },
+      "Skill Level": 1,
+      "Skill Description": "Hurl a bolt of earth energy at the enemy, dealing moderate damage.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 1,
+      "Skill Image": "/gray-spear.png",
+      "Skill Dependencies": [
+        "Earthquake"
+      ],
+      "Skill Prerequisite": "-",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "[CurrentPoints * 10]",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Stone Skin",
+      "Skill Position": "(23,10)",
+      "Skill Position Exact": {
+        "x": 2790,
+        "y": 1170
+      },
+      "Skill Level": 1,
+      "Skill Description": "Imbue yourself with the power of the earth, increasing your defense for a short duration.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 1,
+      "Skill Image": "/golden-arrow.png",
+      "Skill Dependencies": [
+        "Nature's Blessing"
+      ],
+      "Skill Prerequisite": "-",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "-",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Earthquake",
+      "Skill Position": "(18,10)",
+      "Skill Position Exact": {
+        "x": 2130,
+        "y": 1230
+      },
+      "Skill Level": 2,
+      "Skill Description": "Summon a powerful earthquake, damaging all enemies in a large area and knocking them down.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 1,
+      "Skill Image": "/fire-rock.png",
+      "Skill Dependencies": [
+        "Terraform"
+      ],
+      "Skill Prerequisite": "Earth Bolt (1)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "200",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Nature's Blessing",
+      "Skill Position": "(23,11)",
+      "Skill Position Exact": {
+        "x": 2790,
+        "y": 1290
+      },
+      "Skill Level": 2,
+      "Skill Description": "Call upon the Earth God's blessing to heal yourself and nearby allies.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 1,
+      "Skill Image": "/water-sword.png",
+      "Skill Dependencies": [
+        "Summon Earth Elemental"
+      ],
+      "Skill Prerequisite": "Stone Skin (1)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "-",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Terraform",
+      "Skill Position": "(19,10)",
+      "Skill Position Exact": {
+        "x": 2250,
+        "y": 1230
+      },
+      "Skill Level": 3,
+      "Skill Description": "Manipulate the earth to reshape the battlefield, creating obstacles and barriers to protect allies.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 2,
+      "Skill Image": "/axe-hammer-grey.png",
+      "Skill Dependencies": [
+        "Molten Fury",
+        "Skill 9"
+      ],
+      "Skill Prerequisite": "Earthquake (2)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "-",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Summon Earth Elemental",
+      "Skill Position": "(23,12)",
+      "Skill Position Exact": {
+        "x": 2790,
+        "y": 1410
+      },
+      "Skill Level": 3,
+      "Skill Description": "Summon a mighty earth elemental to fight alongside you in battle.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 0,
+      "Skill Image": "/flaming-spear.png",
+      "Skill Dependencies": [
+        "Earthen Barrier"
+      ],
+      "Skill Prerequisite": "Nature's Blessing (2)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "-",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Molten Fury",
+      "Skill Position": "(20,10)",
+      "Skill Position Exact": {
+        "x": 2430,
+        "y": 1230
+      },
+      "Skill Level": 4,
+      "Skill Description": "Unleash a torrent of molten rocks at the enemy, dealing massive damage.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 0,
+      "Skill Image": "/fire-orb.png",
+      "Skill Dependencies": [],
+      "Skill Prerequisite": "Terraform (3)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "400",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Earthen Barrier",
+      "Skill Position": "(22,13)",
+      "Skill Position Exact": {
+        "x": 2670,
+        "y": 1530
+      },
+      "Skill Level": 4,
+      "Skill Description": "Create a protective barrier of solid earth around yourself and nearby allies, reducing incoming damage.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 0,
+      "Skill Image": "/spectral-dagger.png",
+      "Skill Dependencies": [],
+      "Skill Prerequisite": "Summon Earth Elemental (3)",
+      "Skill Resources": [
+        {
+          "name": "Damage",
+          "value": "-",
+          "color": "#ff4747"
+        }
+      ]
+    },
+    {
+      "Skill Name": "Skill 9",
+      "Skill Position": "(20,9)",
+      "Skill Position Exact": {
+        "x": 2430,
+        "y": 1110
+      },
+      "Skill Level": 1,
+      "Skill Description": "Click to edit skill description.",
+      "Skill Max Points": 5,
+      "Skill Current Points": 0,
+      "Skill Image": "/axe-hammer-grey.png",
+      "Skill Dependencies": [],
+      "Skill Prerequisite": "Terraform (3)",
+      "Skill Resources": []
+    }
+  ],
+  "Class Name": " ",
+  "FullData": {
+    "hideLockedSkills": 0,
+    "totalStats": {
+      "Damage": {
+        "total": 210,
+        "color": "#ff4747",
+        "isPercent": false
+      }
+    },
+    "showInfo": false,
+    "showStatsSummary": false,
+    "config": {
+      "paths": {
+        "assets": "/src/app/assets",
+        "config": "/src/app/config",
+        "images": {
+          "skills": "/img/skill",
+          "backgrounds": "/img/background",
+          "default": "/img/skill/axe-hammer-grey.png"
+        }
+      },
+      "grid": {
+        "spacing": 120,
+        "startX": 100,
+        "startY": 100
+      },
+      "skill": {
+        "size": 100,
+        "offset": 30
+      },
+      "connection": {
+        "height": 2
+      },
+      "skillImages": [
+        "/axe-hammer-grey.png",
+        "/fire-orb.png",
+        "/fire-rock.png",
+        "/flaming-spear.png",
+        "/flaming-staff.png",
+        "/golden-arrow.png",
+        "/gray-spear.png",
+        "/ornate-spear.png",
+        "/skull-blue.png",
+        "/small-trident.png",
+        "/spectral-dagger.png",
+        "/water-sword.png"
+      ]
+    },
+    "skills": [
+      {
+        "id": 1,
+        "name": "Earth Bolt",
+        "x": 2010,
+        "y": 1230,
+        "showActions": false,
+        "level": 1,
+        "description": "Hurl a bolt of earth energy at the enemy, dealing moderate damage.",
+        "maxPoints": 5,
+        "currentPoints": 1,
+        "image": "/img/skill/gray-spear.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "[CurrentPoints * 10]",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 2,
+        "name": "Stone Skin",
+        "x": 2790,
+        "y": 1170,
+        "showActions": false,
+        "level": 1,
+        "description": "Imbue yourself with the power of the earth, increasing your defense for a short duration.",
+        "maxPoints": 5,
+        "currentPoints": 1,
+        "image": "/img/skill/golden-arrow.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "-",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 3,
+        "name": "Earthquake",
+        "x": 2130,
+        "y": 1230,
+        "showActions": false,
+        "level": 2,
+        "description": "Summon a powerful earthquake, damaging all enemies in a large area and knocking them down.",
+        "maxPoints": 5,
+        "currentPoints": 1,
+        "image": "/img/skill/fire-rock.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "200",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 4,
+        "name": "Nature's Blessing",
+        "x": 2790,
+        "y": 1290,
+        "showActions": false,
+        "level": 2,
+        "description": "Call upon the Earth God's blessing to heal yourself and nearby allies.",
+        "maxPoints": 5,
+        "currentPoints": 1,
+        "image": "/img/skill/water-sword.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "-",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 5,
+        "name": "Terraform",
+        "x": 2250,
+        "y": 1230,
+        "showActions": false,
+        "level": 3,
+        "description": "Manipulate the earth to reshape the battlefield, creating obstacles and barriers to protect allies.",
+        "maxPoints": 5,
+        "currentPoints": 2,
+        "image": "/img/skill/axe-hammer-grey.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "-",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 6,
+        "name": "Summon Earth Elemental",
+        "x": 2790,
+        "y": 1410,
+        "showActions": false,
+        "level": 3,
+        "description": "Summon a mighty earth elemental to fight alongside you in battle.",
+        "maxPoints": 5,
+        "currentPoints": 0,
+        "image": "/img/skill/flaming-spear.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "-",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 7,
+        "name": "Molten Fury",
+        "x": 2430,
+        "y": 1230,
+        "showActions": false,
+        "level": 4,
+        "description": "Unleash a torrent of molten rocks at the enemy, dealing massive damage.",
+        "maxPoints": 5,
+        "currentPoints": 0,
+        "image": "/img/skill/fire-orb.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "400",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 8,
+        "name": "Earthen Barrier",
+        "x": 2670,
+        "y": 1530,
+        "showActions": false,
+        "level": 4,
+        "description": "Create a protective barrier of solid earth around yourself and nearby allies, reducing incoming damage.",
+        "maxPoints": 5,
+        "currentPoints": 0,
+        "image": "/img/skill/spectral-dagger.png",
+        "shouldAnimate": true,
+        "resources": [
+          {
+            "name": "Damage",
+            "value": "-",
+            "color": "#ff4747"
+          }
+        ],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": [],
+        "showTooltip": false
+      },
+      {
+        "id": 9,
+        "x": 2430,
+        "y": 1110,
+        "name": "Skill 9",
+        "showActions": false,
+        "showTooltip": false,
+        "description": "Click to edit skill description.",
+        "maxPoints": 5,
+        "currentPoints": 0,
+        "requiredPoints": 0,
+        "image": "/img/skill/axe-hammer-grey.png",
+        "shouldAnimate": true,
+        "resources": [],
+        "size": 60,
+        "borderType": "solid",
+        "shape": "round",
+        "cost": 1,
+        "prerequisiteModeOverride": "global",
+        "exclusiveSkillIds": []
+      }
+    ],
+    "connections": [
+      {
+        "id": "1-3",
+        "from": 1,
+        "to": 3,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2580,
+          "y": 1260
+        },
+        "mutuallyExclusive": false,
+        "dotted": false,
+        "isHovered": false
+      },
+      {
+        "id": "2-4",
+        "from": 2,
+        "to": 4,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2700,
+          "y": 1260
+        },
+        "mutuallyExclusive": false,
+        "dotted": false,
+        "isHovered": false
+      },
+      {
+        "id": "3-5",
+        "from": 3,
+        "to": 5,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2580,
+          "y": 1380
+        },
+        "mutuallyExclusive": false,
+        "dotted": false,
+        "isHovered": false
+      },
+      {
+        "id": "4-6",
+        "from": 4,
+        "to": 6,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2700,
+          "y": 1380
+        },
+        "mutuallyExclusive": false,
+        "dotted": false
+      },
+      {
+        "id": "5-7",
+        "from": 5,
+        "to": 7,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2580,
+          "y": 1500
+        },
+        "mutuallyExclusive": false,
+        "dotted": false,
+        "isHovered": false
+      },
+      {
+        "id": "6-8",
+        "from": 6,
+        "to": 8,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2700,
+          "y": 1500
+        },
+        "mutuallyExclusive": false,
+        "dotted": false
+      },
+      {
+        "id": "5-9",
+        "from": 5,
+        "to": 9,
+        "hasControlPoint": false,
+        "controlPoint": {
+          "x": 2370,
+          "y": 1200
+        },
+        "mutuallyExclusive": false,
+        "dotted": false,
+        "isHovered": false
+      }
+    ],
+    "connectingFrom": null,
+    "skillIdCounter": 10,
+    "draggedSkill": null,
+    "dragOffset": {
+      "x": 17,
+      "y": 23.5
+    },
+    "draggedElement": {},
+    "isDragging": false,
+    "isLinking": false,
+    "hoveredSkill": null,
+    "defaultMaxPoints": 5,
+    "dragStartTime": 1775817544299,
+    "dragStartPos": {
+      "x": 2687,
+      "y": 1553.5
+    },
+    "dragThreshold": 5,
+    "showOptions": false,
+    "isPanning": false,
+    "panStart": {
+      "x": 0,
+      "y": 0
+    },
+    "treePosition": {
+      "x": 0,
+      "y": 0
+    },
+    "scale": 1,
+    "minScale": 0.5,
+    "maxScale": 2,
+    "scaleStep": 0.1,
+    "isLoaded": false,
+    "touchStartX": null,
+    "touchStartY": null,
+    "lastTouchDistance": null,
+    "touchTimeout": null,
+    "doubleTapDelay": 300,
+    "lastTap": 0,
+    "editingSkill": null,
+    "oldSkills": null,
+    "oldBackgroundLink": null,
+    "oldName": null,
+    "currentBackgroundLink": "/img/background/grass-ancient.jpg",
+    "currentName": " ",
+    "currentClassDescription": null,
+    "inputText": "",
+    "isLoading": false,
+    "historyIndex": 9,
+    "maxHistorySize": 50,
+    "showImageSelector": false,
+    "selectedImage": "/small-trident.png",
+    "availableImages": [
+      "/axe-hammer-grey.png",
+      "/fire-orb.png",
+      "/fire-rock.png",
+      "/flaming-spear.png",
+      "/flaming-staff.png",
+      "/golden-arrow.png",
+      "/gray-spear.png",
+      "/ornate-spear.png",
+      "/skull-blue.png",
+      "/small-trident.png",
+      "/spectral-dagger.png",
+      "/water-sword.png"
+    ],
+    "skillShape": "round",
+    "customImages": [],
+    "gridSnapEnabled": true,
+    "snapThreshold": 8,
+    "mode": "edit",
+    "overlayColor": "#000000",
+    "overlayOpacity": 75,
+    "showArrows": true,
+    "showGlobalGrid": true,
+    "gridOpacity": 12,
+    "gridSize": 120,
+    "maxPoints": 20,
+    "selectionBox": null,
+    "initialClick": {
+      "x": 2336,
+      "y": 1157.5
+    },
+    "showLoadModal": false,
+    "initialPositions": null,
+    "prerequisiteMode": "all",
+    "showGenerateControls": true,
+    "lastPanTime": 0,
+    "treeEl": {},
+    "imageUrl": "",
+    "defaultSkillImage": "/img/skill/axe-hammer-grey.png",
+    "defaultMaxSkillPoints": 5,
+    "selectingDefaultImage": false,
+    "showSkillNames": false,
+    "skillSizePresets": {
+      "small": 30,
+      "medium": 60,
+      "large": 110,
+      "huge": 330
+    },
+    "showRequirementsTooltip": true,
+    "skillNamesSize": 12,
+    "selectedConnection": null,
+    "editingConnection": false,
+    "controlPoints": [],
+    "addSkillOnClick": true,
+    "treeUnlockColor": "#ffd700",
+    "treeUnlockBoxshadow": "0 0 5px rgba(0, 0, 0, 0.5)",
+    "treeLockedColor": "#FF0000",
+    "treeLockedBoxshadow": "0 0 5px rgba(0, 0, 0, 0.5)",
+    "showNews": true,
+    "keepTooltipOpen": false,
+    "openAllTooltips": false,
+    "showOpenTrees": false,
+    "treeSearchQuery": "",
+    "searchResults": [],
+    "isSearching": false,
+    "skillGoogleFontName": "",
+    "skillFontSize": 12,
+    "systemFontName": "",
+    "systemFontSize": 12,
+    "showNewsWindow": false,
+    "closedNewsIds": [
+      "news-011",
+      "news-010",
+      "news-009",
+      "news-008",
+      "news-007",
+      "news-006",
+      "news-005",
+      "news-001"
+    ],
+    "newsItems": [
+      {
+        "id": "news-011",
+        "date": "Dec 11, 2025",
+        "title": "New Features Added / Bugfixes",
+        "content": "• Delete option for your saved trees<br>• 'Open All Tooltips' toggle in the settings<br>• Edit icons now show above tooltips<br>"
+      },
+      {
+        "id": "news-010",
+        "date": "Dec 6, 2024",
+        "title": "Paid Patreon Accounts are Coming January 1st",
+        "content": "Everyone who logs in with a free Patreon account before January 1st will get Builder Tier for free forever.<br> <br>Starting January 1st, I'll be charging $3 a month (the Builder Tier on Patreon) to host new trees (the share tree online button). All existing trees will continue to be hosted at no cost.<br> <br>You can still save, download, input/upload files locally like normal without an account. It's only new clicks of the share tree online button that you'll need a Builder Tier Patreon account.<br> <br> I've <a href='https://github.com/hdevx/Skill-Tree-Maker' target='_blank'>given the code away for free under MIT License</a>. Feel free to host your own tool with no accounts, contribute features, or use it locally.<br> "
+      },
+      {
+        "id": "news-009",
+        "date": "Dec 5, 2024",
+        "title": "New Features Added",
+        "content": "• Improved mobile support<br>• Fixed mobile grid attachement when flipping device<br>• Fixed mobile skills moving when naming/editing<br>"
+      },
+      {
+        "id": "news-008",
+        "date": "Dec 2, 2024",
+        "title": "New Features Added",
+        "content": "• Ctrl+Click to link from selected skills<br>"
+      },
+      {
+        "id": "news-007",
+        "date": "Sept 3, 2024",
+        "title": "New Features Added",
+        "content": "- Requirements Tooltip Added<br> When hovering over a skill, the unmet requirements are shown above the skill description. This can be toggled on and off globally in the settings under \"Show Requirements Description\".<br> - Mutually Exclusive Skills<br> - Edit Connection Window<br> - Set the cost of each skill level for individual skills (previously could only be 1).<br> - Set the skill selection color under \"Tree Unlock Color\" in the settings.<br> - \"Add New Skill On Click\" toggle in the settings. Turn this off to disable new skills being made when clicking or tapping an empty part of the tree.<br> "
+      },
+      {
+        "id": "news-006",
+        "date": "July 30, 2024",
+        "title": "New Features Added",
+        "content": "- Individual skill size, basic shapes, borders <br> - Mass skill edits<br> "
+      },
+      {
+        "id": "news-005",
+        "date": "June 25, 2024",
+        "title": "New Features Added",
+        "content": "- Setting for default skill icons for new skills<br> - Setting for default max skill points for new skills<br> - Removable custom images with an 'x' button in the top right of each custom image <br> - 'Auto Format Skills From Circle' button in the settings. This should branch skills evenly spaced from their root node.<br> "
+      },
+      {
+        "id": "news-001",
+        "date": "January 15, 2025",
+        "title": "Welcome to Skill Tree Maker!",
+        "content": "Create amazing skill trees for your RPG characters and games. Drag and drop skills, connect them, and export as JSON!"
+      }
+    ],
+    "showAccount": false,
+    "accountStatus": {
+      "logged_in": false
+    },
+    "showPatreonModal": false,
+    "patreonModalTitle": "",
+    "patreonModalMessage": "",
+    "patreonModalButtonText": ""
+  }
+}

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import {
+  EQ_SPRITES_CELL as CELL,
+  EQ_SPRITES_PATH,
+  EQ_SPRITES_SHEET_H as SHEET_H,
+  EQ_SPRITES_SHEET_W as SHEET_W,
+} from '@/lib/rpg/eq-sprites-sheet';
 import type { SpritePosition } from '@/lib/types';
-
-// eq_sprites_t.png dimensions and cell size
-const SHEET_W = 512;
-const SHEET_H = 1600;
-const CELL = 32;
 
 interface SpriteIconProps {
   positions: SpritePosition[];
@@ -47,7 +48,7 @@ export function SpriteIcon({
   const bpX = -(pos.col * CELL * scale);
   const bpY = -(pos.row * CELL * scale);
   const spriteBackground = {
-    backgroundImage: 'url(/pixelart/eq_sprites_t.png)',
+    backgroundImage: `url(${EQ_SPRITES_PATH})`,
     backgroundSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
     backgroundPosition: `${bpX}px ${bpY}px`,
     backgroundRepeat: 'no-repeat',
@@ -70,8 +71,8 @@ export function SpriteIcon({
             backgroundColor: tintColor,
             opacity: tintOpacity,
             mixBlendMode: 'multiply',
-            WebkitMaskImage: 'url(/pixelart/eq_sprites_t.png)',
-            maskImage: 'url(/pixelart/eq_sprites_t.png)',
+            WebkitMaskImage: `url(${EQ_SPRITES_PATH})`,
+            maskImage: `url(${EQ_SPRITES_PATH})`,
             WebkitMaskSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
             maskSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
             WebkitMaskPosition: `${bpX}px ${bpY}px`,

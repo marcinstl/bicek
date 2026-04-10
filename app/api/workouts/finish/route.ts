@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
     const current = Number(profile?.hunt_points ?? 0);
-    const maximum = Number(profile?.hunt_points_maximum ?? 420);
+    const maximum = Number(profile?.hunt_points_maximum ?? 75);
     const next = Math.min(current + durationMinutes, maximum);
 
     const { error: updateHpError } = await admin

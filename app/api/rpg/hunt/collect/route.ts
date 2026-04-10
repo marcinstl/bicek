@@ -25,7 +25,7 @@ async function maxBagSize(admin: AdminClient, userId: string): Promise<number> {
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data?.max_inventory_size ?? 20;
+  return data?.max_inventory_size ?? 5;
 }
 
 async function countLockedPendingForHunt(admin: AdminClient, userId: string, huntId: string): Promise<number> {

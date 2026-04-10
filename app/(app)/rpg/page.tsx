@@ -1329,7 +1329,7 @@ export default function RpgPage() {
                         <span className="shrink-0 tabular-nums text-gray-400">
                           {unequippedEntries.length}
                           {' / '}
-                          {rpgProfile?.max_inventory_size ?? 20}
+                          {rpgProfile?.max_inventory_size ?? 5}
                         </span>
                       </p>
                       {renderIconGrid(unequippedEntries)}
