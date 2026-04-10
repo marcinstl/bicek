@@ -1,8 +1,10 @@
+import { isLocalhostHostHeader } from '@/lib/admin-localhost';
 import { NextResponse } from 'next/server';
 import { createAdminSupabaseClient } from '@/lib/supabase-server';
 
-export async function GET() {
-  if (process.env.NODE_ENV !== 'development') {
+export async function GET(request: Request) {
+  const host = request.headers.get('host') ?? request.headers.get('x-forwarded-host');
+  if (!isLocalhostHostHeader(host)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
