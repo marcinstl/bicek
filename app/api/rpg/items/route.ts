@@ -25,7 +25,8 @@ export async function GET() {
     supabase
       .from('rpg_inventory')
       .select('item_id')
-      .eq('user_id', user.id),
+      .eq('user_id', user.id)
+      .eq('locked', false),
   ]);
 
   if (itemsResult.error) return NextResponse.json({ error: itemsResult.error.message }, { status: 500 });

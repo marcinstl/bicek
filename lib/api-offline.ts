@@ -1,5 +1,6 @@
 import { getDb, OFFLINE_USER_ID, randomId } from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
+import { sortSetsOldestFirst } from '@/lib/sort-sets';
 import { MOCK_RPG_ITEMS } from '@/lib/rpg/pixelart-icons';
 import type {
   Plan,
@@ -301,7 +302,11 @@ export async function getExerciseHistory(
     map.get(s.workout_id)!.sets.push(s);
   }
 
-  return Array.from(map.values()).sort(
+  const entries = Array.from(map.values()).sort(
     (a, b) => b.workout.started_at.localeCompare(a.workout.started_at)
   );
+  for (const e of entries) {
+    e.sets = sortSetsOldestFirst(e.sets);
+  }
+  return entries;
 }

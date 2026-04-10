@@ -5,16 +5,24 @@ import {
   useActiveHunt,
   useCollectHunt,
   useEquipRpgItem,
-  useHuntPoints,
   useRpgInventory,
   useRpgItems,
+  useRpgProfile,
   useStartHunt,
+  useTradeRpgItem,
   useUnequipRpgItem,
 } from '@/hooks/useRpgInventory';
 import { useSetsForWorkouts, useWorkoutHistory } from '@/hooks/useWorkout';
 import { getExerciseKindTitle, kindBuffBadgeClassName } from '@/lib/exercise-stats';
 import { applyKindRate, applyXpRates } from '@/lib/rpg/buffs';
 import { HUNT_CONFIGS, RARITY_LABELS, RARITY_LOOT_PREVIEW } from '@/lib/rpg/hunts';
+import {
+  FRAGMENT_DB_COLUMN,
+  fragmentTotalsToLines,
+  normalizeItemRarity,
+  totalFragmentsFromTrades,
+  tradeRewardLines,
+} from '@/lib/rpg/trade';
 import { getLevelProgress } from '@/lib/rpg/leveling';
 import { checkRequirements } from '@/lib/rpg/requirements';
 import { computeSetXp } from '@/lib/rpg/xp';
@@ -124,6 +132,10 @@ const HUNT_MODAL_SPRITE_BY_RARITY: Record<RpgRarity, { col: number; row: number 
   epic: { col: 3, row: 42 },
   legendary: { col: 4, row: 42 },
 };
+
+/** UI-only: crystal sprite for fragment tiers (counts wired in a later feature). */
+const FRAGMENT_CRYSTAL_SPRITE = { col: 4, row: 47 } as const;
+const FRAGMENT_TIERS: RpgRarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 
 const RARITY_SORT_INDEX: Record<RpgRarity, number> = {
   common: 0,
@@ -250,11 +262,12 @@ export default function RpgPage() {
   const { data: items = [] } = useRpgItems();
   const { data: inventoryRows = [] } = useRpgInventory();
   const { data: activeHunt } = useActiveHunt();
-  const { data: huntPoints } = useHuntPoints();
+  const { data: rpgProfile } = useRpgProfile();
   const equipMutation = useEquipRpgItem();
   const unequipMutation = useUnequipRpgItem();
   const startHuntMutation = useStartHunt();
   const collectHuntMutation = useCollectHunt();
+  const tradeMutation = useTradeRpgItem();
 
   const [showTotalExp, setShowTotalExp] = useState(true);
   const [menuRowId, setMenuRowId] = useState<string | null>(null); // inventory row id
@@ -268,7 +281,20 @@ export default function RpgPage() {
   // Hunt UI state
   const [huntModalOpen, setHuntModalOpen] = useState(false);
   const [selectedHuntRarity, setSelectedHuntRarity] = useState<RpgRarity | null>(null);
-  const [rewardItems, setRewardItems] = useState<{ id: string; name: string; rarity: RpgRarity; sprite_positions: import('@/lib/types').SpritePosition[] | null }[] | null>(null);
+  const [huntRewardModal, setHuntRewardModal] = useState<{
+    allRewards: { id: string; name: string; rarity: RpgRarity; sprite_positions: import('@/lib/types').SpritePosition[] | null; stashed: boolean }[];
+    hasStashedLoot: boolean;
+    stashedCount: number;
+  } | null>(null);
+  const [tradeTarget, setTradeTarget] = useState<{
+    rowId: string;
+    itemName: string;
+    rarity: RpgRarity;
+  } | null>(null);
+  const [tradeError, setTradeError] = useState('');
+  const [sellDupesOpen, setSellDupesOpen] = useState(false);
+  const [sellDupesError, setSellDupesError] = useState('');
+  const [sellDupesPending, setSellDupesPending] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -293,6 +319,48 @@ export default function RpgPage() {
     }
     return mapped;
   }, [inventoryRows]);
+
+  /** Unequipped stacks only: same item_id with ≥2 rows → sell all but one (stable by row id). */
+  const duplicateSellPlan = useMemo(() => {
+    const byItem = new Map<string, (typeof inventoryRows)[number][]>();
+    for (const row of inventoryRows) {
+      if (row.equipped) continue;
+      const list = byItem.get(row.item_id) ?? [];
+      list.push(row);
+      byItem.set(row.item_id, list);
+    }
+    const rowIdsToSell: string[] = [];
+    const sellLines: {
+      itemId: string;
+      name: string;
+      rarity: RpgRarity;
+      quantity: number;
+      sprite_positions: import('@/lib/types').SpritePosition[] | null;
+    }[] = [];
+    const countsByRarity: Partial<Record<RpgRarity, number>> = {};
+
+    for (const [itemId, rows] of byItem) {
+      if (rows.length < 2) continue;
+      const sorted = [...rows].sort((a, b) => a.id.localeCompare(b.id));
+      const surplus = sorted.slice(1);
+      const meta = itemById.get(itemId);
+      const rarity = normalizeItemRarity(meta?.rarity);
+      sellLines.push({
+        itemId,
+        name: meta?.name ?? '???',
+        rarity,
+        quantity: surplus.length,
+        sprite_positions: meta?.sprite_positions ?? null,
+      });
+      for (const r of surplus) {
+        rowIdsToSell.push(r.id);
+        countsByRarity[rarity] = (countsByRarity[rarity] ?? 0) + 1;
+      }
+    }
+
+    const fragmentLines = fragmentTotalsToLines(totalFragmentsFromTrades(countsByRarity));
+    return { rowIdsToSell, sellLines, fragmentLines };
+  }, [inventoryRows, itemById]);
 
   const invSlotOptions = useMemo(
     () => [...new Set(items.filter((i) => ownedItemIds.has(i.id)).map((i) => i.eq_slot))].sort(),
@@ -515,16 +583,16 @@ export default function RpgPage() {
             </div>
 
             {/* Hunt Points — below skill bars */}
-            {huntPoints != null && (
+            {rpgProfile != null && (
               <div className="mt-5 max-w-sm">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-700">Hunt Points</span>
                   <span className="text-xs font-medium tabular-nums text-gray-700">
-                    {huntPoints.hunt_points % 1 === 0
-                      ? huntPoints.hunt_points
-                      : huntPoints.hunt_points.toFixed(1)}
+                    {rpgProfile.hunt_points % 1 === 0
+                      ? rpgProfile.hunt_points
+                      : rpgProfile.hunt_points.toFixed(1)}
                     <span className="ml-1 inline-flex items-center gap-1 font-normal text-gray-400">
-                      / {huntPoints.hunt_points_maximum}
+                      / {rpgProfile.hunt_points_maximum}
                       <SpriteIcon positions={[{ col: 3, row: 47 }]} size={12} />
                     </span>
                   </span>
@@ -532,7 +600,7 @@ export default function RpgPage() {
                 <div className="h-2 rounded-full bg-gray-100">
                   <div
                     className="h-2 rounded-full bg-amber-400 transition-all duration-500"
-                    style={{ width: `${Math.min(100, (huntPoints.hunt_points / huntPoints.hunt_points_maximum) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (rpgProfile.hunt_points / rpgProfile.hunt_points_maximum) * 100)}%` }}
                   />
                 </div>
               </div>
@@ -604,64 +672,113 @@ export default function RpgPage() {
         const huntConfig = HUNT_CONFIGS.find((c) => c.rarity === activeHunt?.rarity);
         const huntStyles = activeHunt ? HUNT_RARITY_STYLES[activeHunt.rarity] : null;
 
+        const fragmentStrip = (
+          <div className="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:justify-end">
+            {FRAGMENT_TIERS.map((tier) => {
+              const styles = HUNT_RARITY_STYLES[tier];
+              return (
+                <div
+                  key={tier}
+                  className={`flex h-8 items-center gap-1.5 rounded-lg border px-1.5 ${styles.border} ${styles.bg}`}
+                  title={`Fragmenty (${RARITY_LABELS[tier]})`}
+                >
+                  <div className="flex shrink-0 items-center justify-center">
+                    <SpriteIcon
+                      positions={[FRAGMENT_CRYSTAL_SPRITE]}
+                      size={22}
+                      tintColor={RARITY_TINT_HEX[tier]}
+                      tintOpacity={0.78}
+                    />
+                  </div>
+                  <span className={`min-w-3.5 text-xs font-bold tabular-nums ${styles.text}`}>
+                    {rpgProfile?.[FRAGMENT_DB_COLUMN[tier]] ?? 0}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+
         return (
           <div className="mt-4">
-            {activeHunt ? (
-              // Active hunt — progress bar button
-              <div>
-                <div className="relative h-10 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
-                  {/* Fill */}
-                  <div
-                    className={`absolute inset-y-0 left-0 transition-all duration-1000 ${huntStyles?.fill ?? 'bg-gray-400'}`}
-                    style={{ width: `${huntPct}%` }}
-                  />
-                  {/* Label */}
-                  <div className="absolute inset-0 flex items-center justify-center gap-2">
-                    <span className="text-xs font-semibold text-gray-800 drop-shadow-sm">
-                      {huntConfig?.name} — {Math.round(huntPct)}%
-                    </span>
-                    {isHuntDone && (
-                      <button
-                        type="button"
-                        disabled={collectHuntMutation.isPending}
-                        onClick={() => {
-                          void collectHuntMutation.mutateAsync().then((data) => {
-                            const rewarded = (data.items as { id: string; name: string; rarity: string; sprite_positions: import('@/lib/types').SpritePosition[] | null }[])
-                              .map((i) => ({ ...i, rarity: (i.rarity ?? 'common') as RpgRarity }));
-                            setRewardItems(rewarded);
-                          });
-                        }}
-                        className={`rounded-lg px-3 py-1 text-xs font-bold text-white shadow ${huntStyles?.fill ?? 'bg-gray-500'} hover:opacity-90 transition-opacity`}
-                      >
-                        {collectHuntMutation.isPending ? '…' : 'Collect!'}
-                      </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <div
+                className={
+                  activeHunt ? 'min-w-0 w-full sm:flex-1' : 'self-start sm:shrink-0'
+                }
+              >
+                {activeHunt ? (
+                  // Active hunt — progress bar button
+                  <div>
+                    <div className="relative h-10 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                      {/* Fill */}
+                      <div
+                        className={`absolute inset-y-0 left-0 transition-all duration-1000 ${huntStyles?.fill ?? 'bg-gray-400'}`}
+                        style={{ width: `${huntPct}%` }}
+                      />
+                      {/* Label */}
+                      <div className="absolute inset-0 flex items-center justify-center gap-2">
+                        <span className="text-xs font-semibold text-gray-800 drop-shadow-sm">
+                          {huntConfig?.name} — {Math.round(huntPct)}%
+                        </span>
+                        {isHuntDone && (
+                          <button
+                            type="button"
+                            disabled={collectHuntMutation.isPending}
+                            onClick={() => {
+                              void collectHuntMutation.mutateAsync().then((data) => {
+                                const raw = (data.allRewards ?? []) as {
+                                  id: string;
+                                  name: string;
+                                  rarity: string;
+                                  stashed?: boolean;
+                                  sprite_positions: import('@/lib/types').SpritePosition[] | null;
+                                }[];
+                                const allRewards = raw.map((i) => ({
+                                  ...i,
+                                  rarity: (i.rarity ?? 'common') as RpgRarity,
+                                  stashed: i.stashed === true,
+                                }));
+                                const lr = data.lockedRemaining ?? 0;
+                                setHuntRewardModal({
+                                  allRewards,
+                                  hasStashedLoot: lr > 0,
+                                  stashedCount: lr,
+                                });
+                              });
+                            }}
+                            className={`rounded-lg px-3 py-1 text-xs font-bold text-white shadow ${huntStyles?.fill ?? 'bg-gray-500'} hover:opacity-90 transition-opacity`}
+                          >
+                            {collectHuntMutation.isPending ? '…' : 'Collect!'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {huntRemaining && (
+                      <p className="mt-1 text-center text-[11px] text-gray-500 tabular-nums">{huntRemaining}</p>
+                    )}
+                    {isHuntDone && !collectHuntMutation.isPending && (
+                      <p className="mt-1 text-center text-[11px] font-semibold text-green-600">Hunt zakończony! Kliknij Collect!</p>
                     )}
                   </div>
-                </div>
-                {huntRemaining && (
-                  <p className="mt-1 text-center text-[11px] text-gray-500 tabular-nums">{huntRemaining}</p>
-                )}
-                {isHuntDone && !collectHuntMutation.isPending && (
-                  <p className="mt-1 text-center text-[11px] font-semibold text-green-600">Hunt zakończony! Kliknij Collect!</p>
+                ) : (
+                  // No active hunt — Hunt button
+                  <button
+                    type="button"
+                    disabled={(rpgProfile?.hunt_points ?? 50) < 50}
+                    onClick={() => setHuntModalOpen(true)}
+                    className="inline-flex w-auto max-w-full justify-center rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mr-3 sm:mr-4"
+                    title={(rpgProfile?.hunt_points ?? 50) < 50 ? 'Potrzebujesz co najmniej 50 Hunt Points' : undefined}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <SpriteIcon positions={[{ col: 3, row: 47 }]} size={16} />
+                      Hunt
+                    </span>
+                  </button>
                 )}
               </div>
-            ) : (
-              // No active hunt — Hunt button
-              <div>
-                <button
-                  type="button"
-                  disabled={(huntPoints?.hunt_points ?? 50) < 50}
-                  onClick={() => setHuntModalOpen(true)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={(huntPoints?.hunt_points ?? 50) < 50 ? 'Potrzebujesz co najmniej 50 Hunt Points' : undefined}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <SpriteIcon positions={[{ col: 3, row: 47 }]} size={16} />
-                    Hunt
-                  </span>
-                </button>
-              </div>
-            )}
+              {fragmentStrip}
+            </div>
 
             {/* Hunt picker modal */}
             {huntModalOpen && !activeHunt && (
@@ -669,13 +786,13 @@ export default function RpgPage() {
                 <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-base font-bold text-gray-900">Wybierz wyprawę</h2>
-                    {huntPoints != null && (
+                    {rpgProfile != null && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
                         <SpriteIcon positions={[{ col: 3, row: 47 }]} size={16} />
                         <span className="font-semibold text-gray-700 tabular-nums">
-                          {huntPoints.hunt_points % 1 === 0 ? huntPoints.hunt_points : huntPoints.hunt_points.toFixed(1)}
+                          {rpgProfile.hunt_points % 1 === 0 ? rpgProfile.hunt_points : rpgProfile.hunt_points.toFixed(1)}
                         </span>
-                        {' / '}{huntPoints.hunt_points_maximum} HP
+                        {' / '}{rpgProfile.hunt_points_maximum} HP
                       </span>
                     )}
                   </div>
@@ -683,7 +800,7 @@ export default function RpgPage() {
                     {HUNT_CONFIGS.map((cfg) => {
                       const styles = HUNT_RARITY_STYLES[cfg.rarity];
                       const isSelected = selectedHuntRarity === cfg.rarity;
-                      const canAfford = (huntPoints?.hunt_points ?? 0) >= cfg.hunt_cost;
+                      const canAfford = (rpgProfile?.hunt_points ?? 0) >= cfg.hunt_cost;
                       return (
                         <button
                           key={cfg.rarity}
@@ -745,7 +862,7 @@ export default function RpgPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={!selectedHuntRarity || startHuntMutation.isPending || (selectedHuntRarity != null && (huntPoints?.hunt_points ?? 0) < (HUNT_CONFIGS.find((c) => c.rarity === selectedHuntRarity)?.hunt_cost ?? 0))}
+                      disabled={!selectedHuntRarity || startHuntMutation.isPending || (selectedHuntRarity != null && (rpgProfile?.hunt_points ?? 0) < (HUNT_CONFIGS.find((c) => c.rarity === selectedHuntRarity)?.hunt_cost ?? 0))}
                       onClick={() => {
                         if (!selectedHuntRarity) return;
                         void startHuntMutation.mutateAsync(selectedHuntRarity).then(() => {
@@ -763,35 +880,63 @@ export default function RpgPage() {
             )}
 
             {/* Reward modal */}
-            {rewardItems && (
+            {huntRewardModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
                 <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-                  <h2 className="mb-4 text-base font-bold text-gray-900">🎉 Zdobyte przedmioty!</h2>
-                  {rewardItems.length === 0 ? (
+                  <h2 className="mb-4 text-base font-bold text-gray-900">🎉 Łupy z wyprawy</h2>
+                  {huntRewardModal.hasStashedLoot && (
+                    <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                      Cała paczka wchodzi <strong>naraz</strong> (wszystko albo nic). Potrzebujesz co najmniej{' '}
+                      <strong className="tabular-nums">{huntRewardModal.stashedCount}</strong> wolnych miejsc w plecaku —
+                      sprzedaj lub załóż przedmioty, potem znów <strong>Collect!</strong>
+                    </p>
+                  )}
+                  {huntRewardModal.allRewards.length === 0 ? (
                     <p className="text-sm text-gray-500 mb-4">Brak łupów.</p>
                   ) : (
-                    <div className="flex flex-col gap-2 mb-4">
-                      {rewardItems.map((item, idx) => {
-                        const styles = HUNT_RARITY_STYLES[item.rarity];
-                        return (
-                          <div key={idx} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${styles.border} ${styles.bg}`}>
-                            {item.sprite_positions && item.sprite_positions.length > 0 ? (
-                              <SpriteIcon positions={item.sprite_positions} size={40} />
-                            ) : (
-                              <div className="h-10 w-10 rounded bg-gray-100" />
-                            )}
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                              <span className={`text-[10px] font-semibold ${styles.text}`}>{RARITY_LABELS[item.rarity]}</span>
+                    <div className="mb-4 flex max-h-[min(52vh,22rem)] flex-col gap-2 overflow-y-auto pr-0.5">
+                      {(() => {
+                        const showLootStatus =
+                          huntRewardModal.hasStashedLoot || huntRewardModal.allRewards.some((r) => r.stashed);
+                        return huntRewardModal.allRewards.map((item, idx) => {
+                          const styles = HUNT_RARITY_STYLES[item.rarity];
+                          return (
+                            <div
+                              key={`${item.id}-${idx}`}
+                              className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${styles.border} ${styles.bg} ${
+                                item.stashed ? 'opacity-85' : ''
+                              }`}
+                            >
+                              {item.sprite_positions && item.sprite_positions.length > 0 ? (
+                                <SpriteIcon positions={item.sprite_positions} size={40} />
+                              ) : (
+                                <div className="h-10 w-10 rounded bg-gray-100" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                  <span className={`text-[10px] font-semibold ${styles.text}`}>{RARITY_LABELS[item.rarity]}</span>
+                                  {showLootStatus &&
+                                    (item.stashed ? (
+                                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                                        Czeka na miejsce
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                        W plecaku
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                   <button
                     type="button"
-                    onClick={() => setRewardItems(null)}
+                    onClick={() => setHuntRewardModal(null)}
                     className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors"
                   >
                     Zamknij
@@ -1104,6 +1249,24 @@ export default function RpgPage() {
                         >
                           Compare
                         </button>
+                        <div className="border-t border-gray-100" />
+                        <button
+                          type="button"
+                          disabled={row.equipped}
+                          title={row.equipped ? 'Zdejmij przedmiot, zeby moc go sprzedac' : undefined}
+                          onClick={() => {
+                            setTradeError('');
+                            setTradeTarget({
+                              rowId: row.id,
+                              itemName: item.name ?? '???',
+                              rarity: normalizeItemRarity(item.rarity),
+                            });
+                            setMenuRowId(null);
+                          }}
+                          className="flex w-full items-center px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Trade
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1161,10 +1324,27 @@ export default function RpgPage() {
                   )}
                   {unequippedEntries.length > 0 && (
                     <div className={equippedEntries.length > 0 ? 'mt-3 border-t border-gray-100 pt-3' : 'mt-3'}>
-                      {equippedEntries.length > 0 && (
-                        <p className="mb-2 text-xs font-medium text-gray-500">Bag</p>
-                      )}
+                      <p className="mb-2 flex items-baseline justify-between gap-2 text-xs font-medium text-gray-500">
+                        <span>Inventory</span>
+                        <span className="shrink-0 tabular-nums text-gray-400">
+                          {unequippedEntries.length}
+                          {' / '}
+                          {rpgProfile?.max_inventory_size ?? 20}
+                        </span>
+                      </p>
                       {renderIconGrid(unequippedEntries)}
+                      {duplicateSellPlan.rowIdsToSell.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSellDupesError('');
+                            setSellDupesOpen(true);
+                          }}
+                          className="mt-3 w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 shadow-sm hover:bg-amber-100/90 transition-colors sm:w-auto"
+                        >
+                          Sell duplicates
+                        </button>
+                      )}
                     </div>
                   )}
                   {equippedEntries.length === 0 && unequippedEntries.length === 0 && (
@@ -1226,6 +1406,177 @@ export default function RpgPage() {
           </ul>
         )}
       </section>
+
+      {sellDupesOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h2 className="text-base font-bold text-gray-900">Sell duplicates?</h2>
+            <p className="mt-2 text-xs text-gray-500">
+              W plecaku zostaje po jednej niezałożonej sztuce każdego przedmiotu — reszta trafia na sprzedaż. Założony ekwipunek nie wchodzi w skład duplikatów.
+            </p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Do sprzedania</p>
+            <div className="mt-2 flex max-h-[min(40vh,14rem)] flex-col gap-2 overflow-y-auto pr-0.5">
+              {duplicateSellPlan.sellLines.map((line) => {
+                const styles = HUNT_RARITY_STYLES[line.rarity];
+                return (
+                  <div
+                    key={line.itemId}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${styles.border} ${styles.bg}`}
+                  >
+                    {line.sprite_positions && line.sprite_positions.length > 0 ? (
+                      <SpriteIcon positions={line.sprite_positions} size={36} />
+                    ) : (
+                      <div className="h-9 w-9 shrink-0 rounded-lg bg-gray-100" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900">{line.name}</p>
+                      <span className={`text-[10px] font-semibold ${styles.text}`}>
+                        ×{line.quantity} · {RARITY_LABELS[line.rarity]}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Otrzymasz fragmenty</p>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {duplicateSellPlan.fragmentLines.map(({ tier, count }) => {
+                const styles = HUNT_RARITY_STYLES[tier];
+                return (
+                  <div
+                    key={tier}
+                    className={`flex h-8 items-center gap-1.5 rounded-lg border px-1.5 ${styles.border} ${styles.bg}`}
+                    title={`${count}× ${RARITY_LABELS[tier]}`}
+                  >
+                    <div className="flex shrink-0 items-center justify-center">
+                      <SpriteIcon
+                        positions={[FRAGMENT_CRYSTAL_SPRITE]}
+                        size={22}
+                        tintColor={RARITY_TINT_HEX[tier]}
+                        tintOpacity={0.78}
+                      />
+                    </div>
+                    <span className={`min-w-3.5 text-xs font-bold tabular-nums ${styles.text}`}>{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {sellDupesError ? (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{sellDupesError}</p>
+            ) : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSellDupesOpen(false);
+                  setSellDupesError('');
+                }}
+                disabled={sellDupesPending}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={sellDupesPending || duplicateSellPlan.rowIdsToSell.length === 0}
+                onClick={() => {
+                  setSellDupesError('');
+                  setSellDupesPending(true);
+                  void (async () => {
+                    try {
+                      for (const rowId of duplicateSellPlan.rowIdsToSell) {
+                        await tradeMutation.mutateAsync(rowId);
+                      }
+                      setSellDupesOpen(false);
+                    } catch (e: unknown) {
+                      setSellDupesError(e instanceof Error ? e.message : 'Nie udalo sie sprzedac duplikatow');
+                    } finally {
+                      setSellDupesPending(false);
+                    }
+                  })();
+                }}
+                className="flex-1 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {sellDupesPending ? '…' : 'Sprzedaj'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tradeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h2 className="text-base font-bold text-gray-900">Sprzedac przedmiot?</h2>
+            <p className="mt-2 text-sm font-medium text-gray-800">{tradeTarget.itemName}</p>
+            <p className="mt-3 text-xs text-gray-500">
+              Przedmiot zniknie z ekwipunku. Na pewno chcesz kontynuowac?
+            </p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Otrzymasz fragmenty
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {tradeRewardLines(tradeTarget.rarity).map(({ tier, count }) => {
+                const styles = HUNT_RARITY_STYLES[tier];
+                return (
+                  <div
+                    key={tier}
+                    className={`flex h-8 items-center gap-1.5 rounded-lg border px-1.5 ${styles.border} ${styles.bg}`}
+                    title={`${count}× ${RARITY_LABELS[tier]}`}
+                  >
+                    <div className="flex shrink-0 items-center justify-center">
+                      <SpriteIcon
+                        positions={[FRAGMENT_CRYSTAL_SPRITE]}
+                        size={22}
+                        tintColor={RARITY_TINT_HEX[tier]}
+                        tintOpacity={0.78}
+                      />
+                    </div>
+                    <span className={`min-w-3.5 text-xs font-bold tabular-nums ${styles.text}`}>
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {tradeError ? (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {tradeError}
+              </p>
+            ) : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setTradeTarget(null);
+                  setTradeError('');
+                }}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={tradeMutation.isPending}
+                onClick={() => {
+                  setTradeError('');
+                  void tradeMutation
+                    .mutateAsync(tradeTarget.rowId)
+                    .then(() => {
+                      setTradeTarget(null);
+                    })
+                    .catch((e: unknown) => {
+                      setTradeError(e instanceof Error ? e.message : 'Nie udalo sie sprzedac przedmiotu');
+                    });
+                }}
+                className="flex-1 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {tradeMutation.isPending ? '…' : 'Sprzedaj'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

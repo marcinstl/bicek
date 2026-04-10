@@ -6,6 +6,7 @@ import {
   mirrorUpsertRpgEquipment,
 } from '@/lib/offline-db';
 import { computeSetXp } from '@/lib/rpg/xp';
+import { sortSetsOldestFirst } from '@/lib/sort-sets';
 import type {
   Plan,
   Exercise,
@@ -23,6 +24,7 @@ import type {
   RpgInventoryRow,
   RpgInventoryWithItem,
   RpgHunt,
+  RpgProfile,
 } from '@/lib/types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -259,6 +261,7 @@ export async function getRpgInventory(): Promise<RpgInventoryWithItem[]> {
   const { data, error } = await supabase
     .from('rpg_inventory')
     .select('*, item:rpg_items(id,eq_slot,spritesheet_path,sprite_positions,rarity)')
+    .eq('locked', false)
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as RpgInventoryWithItem[];
@@ -279,6 +282,7 @@ export async function equipRpgItem(input: { item_id: string }): Promise<RpgInven
     .eq('user_id', userData.user.id)
     .eq('item_id', input.item_id)
     .eq('equipped', false)
+    .eq('locked', false)
     .limit(1)
     .maybeSingle();
 
@@ -338,13 +342,47 @@ export async function startHunt(rarity: string): Promise<RpgHunt> {
   return (await res.json()) as RpgHunt;
 }
 
-export async function collectHunt(): Promise<{ items: unknown[] }> {
+export type CollectHuntResult = {
+  /** Full hunt roll; each entry may include `stashed` (waiting for bag space). */
+  allRewards: unknown[];
+  /** Items that entered the bag on this Collect click (subset of allRewards). */
+  items: unknown[];
+  lockedRemaining: number;
+};
+
+export async function collectHunt(): Promise<CollectHuntResult> {
   const res = await fetch('/api/rpg/hunt/collect', { method: 'POST' });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? 'Failed to collect hunt');
   }
-  return res.json() as Promise<{ items: unknown[] }>;
+  return res.json() as Promise<CollectHuntResult>;
+}
+
+export type TradeRpgResult = {
+  itemRarity: string;
+  fragments: Pick<
+    RpgProfile,
+    | 'fragments_common'
+    | 'fragments_uncommon'
+    | 'fragments_rare'
+    | 'fragments_epic'
+    | 'fragments_legendary'
+  > | null;
+};
+
+export async function tradeRpgInventoryRow(inventoryRowId: string): Promise<TradeRpgResult> {
+  const res = await fetch('/api/rpg/trade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inventoryRowId }),
+    credentials: 'same-origin',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? 'Nie udalo sie sprzedac przedmiotu');
+  }
+  return res.json() as Promise<TradeRpgResult>;
 }
 
 // ─── Sets ────────────────────────────────────────────────────────────────────
@@ -452,9 +490,13 @@ export async function getExerciseHistory(
     const { workouts: _w, ...set } = row as typeof row & { workouts: Workout };
     map.get(w.id)!.sets.push(set as Set);
   }
-  return Array.from(map.values()).sort(
+  const entries = Array.from(map.values()).sort(
     (a, b) => b.workout.started_at.localeCompare(a.workout.started_at)
   );
+  for (const e of entries) {
+    e.sets = sortSetsOldestFirst(e.sets);
+  }
+  return entries;
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
@@ -515,7 +557,7 @@ export function generateWorkoutSummary(
   const setGapById = buildSetGapById(workout, sets);
 
   for (const exercise of exercises) {
-    const exerciseSets = sets.filter((s) => s.exercise_id === exercise.id);
+    const exerciseSets = sortSetsOldestFirst(sets.filter((s) => s.exercise_id === exercise.id));
     if (exerciseSets.length === 0) continue;
 
     summary += `\n${exercise.name}:\n`;

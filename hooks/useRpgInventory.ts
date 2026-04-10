@@ -8,17 +8,18 @@ import {
   getRpgInventory,
   getRpgItems,
   startHunt,
+  tradeRpgInventoryRow,
   unequipRpgItem,
 } from '@/lib/api-router';
 import { createClient } from '@/lib/supabase';
-import type { RpgRarity } from '@/lib/types';
+import type { RpgProfile, RpgRarity } from '@/lib/types';
 
 export const rpgKeys = {
   all: ['rpg'] as const,
   items: () => [...rpgKeys.all, 'items'] as const,
   inventory: () => [...rpgKeys.all, 'inventory'] as const,
   hunt: () => [...rpgKeys.all, 'hunt'] as const,
-  huntPoints: () => [...rpgKeys.all, 'hunt-points'] as const,
+  profile: () => [...rpgKeys.all, 'rpg-profile'] as const,
 };
 
 export function useRpgItems() {
@@ -48,19 +49,21 @@ export function useActiveHunt() {
   });
 }
 
-export function useHuntPoints() {
+export function useRpgProfile() {
   return useQuery({
-    queryKey: rpgKeys.huntPoints(),
+    queryKey: rpgKeys.profile(),
     queryFn: async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       const { data } = await supabase
-        .from('profiles')
-        .select('hunt_points, hunt_points_maximum')
-        .eq('id', user.id)
-        .single();
-      return data as { hunt_points: number; hunt_points_maximum: number } | null;
+        .from('rpg_profiles')
+        .select(
+          'user_id, hunt_points, hunt_points_maximum, max_inventory_size, fragments_common, fragments_uncommon, fragments_rare, fragments_epic, fragments_legendary'
+        )
+        .eq('user_id', user.id)
+        .maybeSingle();
+      return data as RpgProfile | null;
     },
     staleTime: 0,
   });
@@ -92,7 +95,7 @@ export function useStartHunt() {
     mutationFn: (rarity: RpgRarity) => startHunt(rarity),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: rpgKeys.hunt() });
-      queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.profile() });
     },
   });
 }
@@ -105,7 +108,19 @@ export function useCollectHunt() {
       queryClient.invalidateQueries({ queryKey: rpgKeys.hunt() });
       queryClient.invalidateQueries({ queryKey: rpgKeys.inventory() });
       queryClient.invalidateQueries({ queryKey: rpgKeys.items() });
-      queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.profile() });
+    },
+  });
+}
+
+export function useTradeRpgItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inventoryRowId: string) => tradeRpgInventoryRow(inventoryRowId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: rpgKeys.inventory() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.items() });
+      queryClient.invalidateQueries({ queryKey: rpgKeys.profile() });
     },
   });
 }

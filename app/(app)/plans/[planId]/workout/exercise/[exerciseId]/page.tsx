@@ -14,6 +14,7 @@ import {
   getExerciseKindTitle,
   resolveExerciseKind,
 } from '@/lib/exercise-stats';
+import { sortSetsOldestFirst } from '@/lib/sort-sets';
 
 interface Props {
   params: Promise<{ planId: string; exerciseId: string }>;
@@ -32,7 +33,7 @@ export default function ExercisePage({ params }: Props) {
   const deleteSet = useDeleteSet(workoutId);
 
   const exercise = exercises.find((e) => e.id === exerciseId);
-  const currentSets = allSets.filter((s) => s.exercise_id === exerciseId);
+  const currentSets = sortSetsOldestFirst(allSets.filter((s) => s.exercise_id === exerciseId));
 
   const [value, setValue] = useState('');
   const [distanceKm, setDistanceKm] = useState('');

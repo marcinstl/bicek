@@ -35,13 +35,13 @@ export async function POST(req: Request) {
   const config = HUNT_CONFIG_BY_RARITY[rarity];
   const cost = config.hunt_cost;
 
-  // Check and deduct hunt points via admin client (bypasses RLS on profiles).
+  // Check and deduct hunt points via admin client (bypasses RLS on rpg_profiles).
   const admin = createAdminSupabaseClient();
 
   const { data: profile, error: profileError } = await admin
-    .from('profiles')
+    .from('rpg_profiles')
     .select('hunt_points')
-    .eq('id', user.id)
+    .eq('user_id', user.id)
     .single();
 
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
@@ -50,9 +50,9 @@ export async function POST(req: Request) {
   }
 
   const { error: deductError } = await admin
-    .from('profiles')
+    .from('rpg_profiles')
     .update({ hunt_points: (profile.hunt_points as number) - cost })
-    .eq('id', user.id);
+    .eq('user_id', user.id);
 
   if (deductError) return NextResponse.json({ error: deductError.message }, { status: 500 });
 

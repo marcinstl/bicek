@@ -116,8 +116,7 @@ export function useFinishWorkout(planId: string) {
         body: JSON.stringify({ workoutId }),
       });
 
-      // Trigger refetch of hunt points (DB trigger awards them server-side)
-      void queryClient.invalidateQueries({ queryKey: rpgKeys.huntPoints() });
+      void queryClient.invalidateQueries({ queryKey: rpgKeys.profile() });
     },
   });
 }

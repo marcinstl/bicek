@@ -140,6 +140,9 @@ export const startHunt = (rarity: string) =>
 export const collectHunt = () =>
   route(() => online.collectHunt());
 
+export const tradeRpgInventoryRow = (inventoryRowId: string) =>
+  route(() => online.tradeRpgInventoryRow(inventoryRowId));
+
 // ─── Re-export shared utils from api.ts ──────────────────────────────────────
 
 export { formatSetText, generateWorkoutSummary } from '@/lib/api';

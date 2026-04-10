@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { generateWorkoutSummary, formatSetText } from '@/lib/api-router';
+import { sortSetsOldestFirst } from '@/lib/sort-sets';
 import type { Exercise, SetWithExercise } from '@/lib/types';
 
 interface Props {
@@ -128,7 +129,7 @@ export default function WorkoutSummaryPage({ params }: Props) {
       {/* Exercise breakdown */}
       <div className="flex flex-col gap-4 mb-6">
         {loggedExercises.map((ex) => {
-          const exSets = sets.filter((s) => s.exercise_id === ex.id);
+          const exSets = sortSetsOldestFirst(sets.filter((s) => s.exercise_id === ex.id));
           return (
             <div key={ex.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3">{ex.name}</h3>

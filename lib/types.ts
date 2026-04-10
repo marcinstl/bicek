@@ -128,6 +128,22 @@ export const DEFAULT_XP_RATES: XpRates = {
 
 export type RpgRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
+/** RPG-only profile row (hunt points, fragments). */
+export interface RpgProfile {
+  user_id: string;
+  hunt_points: number;
+  hunt_points_maximum: number;
+  /** Max unequipped (bag) stacks; equipped items do not count. */
+  max_inventory_size: number;
+  fragments_common: number;
+  fragments_uncommon: number;
+  fragments_rare: number;
+  fragments_epic: number;
+  fragments_legendary: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface RpgDiscoveredItem {
   id: string;
   eq_slot: string;
@@ -147,6 +163,8 @@ export interface RpgHunt {
   duration_hours: number;
   started_at: string;
   collected_at: string | null;
+  /** Set after first successful collect roll; cleared only if collect insert fails and is reverted. */
+  loot_rolled_at?: string | null;
   created_at: string;
 }
 
@@ -157,6 +175,9 @@ export interface RpgInventoryRow {
   equipped: boolean;
   equipped_at: string;
   updated_at: string;
+  /** Hidden from client until hunt delivery completes or bag space frees up. */
+  locked: boolean;
+  pending_hunt_id: string | null;
 }
 
 export interface RpgInventoryWithItem extends RpgInventoryRow {

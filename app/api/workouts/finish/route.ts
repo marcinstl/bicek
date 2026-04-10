@@ -57,9 +57,9 @@ export async function POST(req: Request) {
 
   if (durationMinutes > 0) {
     const { data: profile, error: profileError } = await admin
-      .from('profiles')
+      .from('rpg_profiles')
       .select('hunt_points, hunt_points_maximum')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
@@ -69,9 +69,9 @@ export async function POST(req: Request) {
     const next = Math.min(current + durationMinutes, maximum);
 
     const { error: updateHpError } = await admin
-      .from('profiles')
+      .from('rpg_profiles')
       .update({ hunt_points: next })
-      .eq('id', user.id);
+      .eq('user_id', user.id);
 
     if (updateHpError) return NextResponse.json({ error: updateHpError.message }, { status: 500 });
   }
