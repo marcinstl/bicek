@@ -152,7 +152,7 @@ export async function POST() {
   if (!hunt) return NextResponse.json({ error: 'No active hunt' }, { status: 404 });
 
   const startMs = new Date(hunt.started_at).getTime();
-  const durationMs = hunt.duration_hours * 60 * 60 * 1000;
+  const durationMs = hunt.duration_minutes * 60 * 1000;
   if (Date.now() < startMs + durationMs) {
     return NextResponse.json({ error: 'Hunt not finished yet' }, { status: 400 });
   }

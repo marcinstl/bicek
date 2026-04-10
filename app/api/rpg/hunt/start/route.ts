@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
   const { data: hunt, error: insertError } = await supabase
     .from('rpg_hunts')
-    .insert({ user_id: user.id, rarity, duration_hours: config.duration_hours })
+    .insert({ user_id: user.id, rarity, duration_minutes: config.duration_minutes })
     .select()
     .single();
 

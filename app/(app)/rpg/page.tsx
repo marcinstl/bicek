@@ -662,11 +662,11 @@ export default function RpgPage() {
       {(() => {
         // Compute hunt progress
         const huntDoneMs = activeHunt
-          ? new Date(activeHunt.started_at).getTime() + activeHunt.duration_hours * 3_600_000
+          ? new Date(activeHunt.started_at).getTime() + activeHunt.duration_minutes * 60_000
           : 0;
         const isHuntDone = activeHunt ? now >= huntDoneMs : false;
         const huntPct = activeHunt
-          ? Math.min(100, ((now - new Date(activeHunt.started_at).getTime()) / (activeHunt.duration_hours * 3_600_000)) * 100)
+          ? Math.min(100, ((now - new Date(activeHunt.started_at).getTime()) / (activeHunt.duration_minutes * 60_000)) * 100)
           : 0;
         const huntRemaining = activeHunt && !isHuntDone ? formatCountdown(huntDoneMs - now) : null;
         const huntConfig = HUNT_CONFIGS.find((c) => c.rarity === activeHunt?.rarity);
@@ -831,11 +831,11 @@ export default function RpgPage() {
                               </span>
                             </div>
                             <p className="text-[11px] text-gray-500 mt-0.5">
-                              {cfg.duration_hours >= 24
-                                ? `${cfg.duration_hours / 24}d`
-                                : cfg.duration_hours < 1
-                                  ? `${cfg.duration_hours * 60} min`
-                                  : `${cfg.duration_hours}h`}
+                              {cfg.duration_minutes >= 1440
+                                ? `${cfg.duration_minutes / 1440}d`
+                                : cfg.duration_minutes >= 60
+                                  ? `${cfg.duration_minutes / 60}h`
+                                  : `${cfg.duration_minutes} min`}
                               {' · '}
                               {cfg.item_count_min === cfg.item_count_max
                                 ? `${cfg.item_count_min} item`

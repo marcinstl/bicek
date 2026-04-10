@@ -4,7 +4,7 @@ export const HUNT_CONFIGS = [
   {
     rarity: 'common' as RpgRarity,
     name: 'Patrol',
-    duration_hours: 0.5,
+    duration_minutes: 30,
     item_count_min: 1,
     item_count_max: 1,
     hunt_cost: 50,
@@ -12,7 +12,7 @@ export const HUNT_CONFIGS = [
   {
     rarity: 'uncommon' as RpgRarity,
     name: 'Ekspedycja',
-    duration_hours: 2,
+    duration_minutes: 120,
     item_count_min: 1,
     item_count_max: 2,
     hunt_cost: 100,
@@ -20,7 +20,7 @@ export const HUNT_CONFIGS = [
   {
     rarity: 'rare' as RpgRarity,
     name: 'Poszukiwanie',
-    duration_hours: 6,
+    duration_minutes: 360,
     item_count_min: 1,
     item_count_max: 3,
     hunt_cost: 150,
@@ -28,7 +28,7 @@ export const HUNT_CONFIGS = [
   {
     rarity: 'epic' as RpgRarity,
     name: 'Rajd',
-    duration_hours: 24,
+    duration_minutes: 1440,
     item_count_min: 1,
     item_count_max: 5,
     hunt_cost: 250,
@@ -36,7 +36,7 @@ export const HUNT_CONFIGS = [
   {
     rarity: 'legendary' as RpgRarity,
     name: 'Krucjata',
-    duration_hours: 168,
+    duration_minutes: 10080,
     item_count_min: 1,
     item_count_max: 7,
     hunt_cost: 400,

@@ -160,7 +160,7 @@ export interface RpgHunt {
   id: string;
   user_id: string;
   rarity: RpgRarity;
-  duration_hours: number;
+  duration_minutes: number;
   started_at: string;
   collected_at: string | null;
   /** Set after first successful collect roll; cleared only if collect insert fails and is reverted. */
