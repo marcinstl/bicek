@@ -17,6 +17,10 @@ function roundDown(value: number): number {
   return Math.max(0, Math.floor(value));
 }
 
+/** Czas (min) jako główna baza XP; dystans słabszy — tempo nie wchodzi osobno. */
+export const DISTANCE_PER_TIME_TIME_WEIGHT = 72;
+export const DISTANCE_PER_TIME_DISTANCE_WEIGHT = 12;
+
 export function computeSetXp(kind: ExerciseKind, set: XpSetInput): number {
   const reps = safe(set.reps);
   const kg = safe(set.value);
@@ -34,8 +38,11 @@ export function computeSetXp(kind: ExerciseKind, set: XpSetInput): number {
     }
     case 'distance_per_time': {
       if (seconds <= 0 || distanceKm <= 0) return 0;
-      const avgSpeedKmh = distanceKm / (seconds / 3600);
-      return roundDown(10 * Math.sqrt(distanceKm * avgSpeedKmh));
+      const minutes = seconds / 60;
+      return roundDown(
+        DISTANCE_PER_TIME_TIME_WEIGHT * Math.sqrt(minutes) +
+          DISTANCE_PER_TIME_DISTANCE_WEIGHT * Math.sqrt(distanceKm),
+      );
     }
     default:
       return 0;
